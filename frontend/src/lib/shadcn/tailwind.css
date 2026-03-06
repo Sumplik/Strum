@@ -1,0 +1,114 @@
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  
+  --color-destructive: var(--destructive);
+  
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
+}
+
+/* Utility classes for shadcn components */
+@utility border-border {
+  border-color: var(--border);
+}
+
+@utility bg-background {
+  background-color: var(--background);
+}
+
+@utility text-foreground {
+  color: var(--foreground);
+}
+
+@utility bg-card {
+  background-color: var(--card);
+}
+
+@utility text-card-foreground {
+  color: var(--card-foreground);
+}
+
+@utility bg-popover {
+  background-color: var(--popover);
+}
+
+@utility text-popover-foreground {
+  color: var(--popover-foreground);
+}
+
+@utility bg-primary {
+  background-color: var(--primary);
+}
+
+@utility text-primary-foreground {
+  color: var(--primary-foreground);
+}
+
+@utility bg-secondary {
+  background-color: var(--secondary);
+}
+
+@utility text-secondary-foreground {
+  color: var(--secondary-foreground);
+}
+
+@utility bg-muted {
+  background-color: var(--muted);
+}
+
+@utility text-muted-foreground {
+  color: var(--muted-foreground);
+}
+
+@utility bg-accent {
+  background-color: var(--accent);
+}
+
+@utility text-accent-foreground {
+  color: var(--accent-foreground);
+}
+
+@utility bg-destructive {
+  background-color: var(--destructive);
+}
+
+@utility text-destructive-foreground {
+  color: var(--primary-foreground);
+}
+
+@utility bg-input {
+  background-color: var(--input);
+}
+
+@utility ring-ring {
+  --tw-ring-color: var(--ring);
+}
+
+@utility ring-offset-background {
+  --tw-ring-offset-color: var(--background);
+}
