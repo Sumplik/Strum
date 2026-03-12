@@ -27,26 +27,26 @@ function calculateStats(devices: { status?: string | null }[]): MachineStats {
 interface StatCardProps {
   title: string;
   value: string | number;
-  color?: "default" | "blue" | "orange" | "red";
+  color?: "default" | "blue" | "green" | "red";
 }
 
 function StatCard({ title, value, color = "default" }: StatCardProps) {
   const colorClasses = {
     default: "",
     blue: "border-l-blue-500",
-    orange: "border-l-orange-500",
+    green: "border-l-green-500",
     red: "border-l-red-500",
   };
 
   const textColorClasses = {
     default: "",
-    blue: "text-blue-600",
-    orange: "text-orange-600",
-    red: "text-red-600",
+    blue: "text-blue-600 dark:text-blue-400",
+    green: "text-green-600 dark:text-green-400",
+    red: "text-red-600 dark:text-red-400",
   };
 
   return (
-    <Card className={`border-l-4 ${colorClasses[color]}`}>
+    <Card className={`border-l-4 ${colorClasses[color]} dark:bg-[var(--card)]`}>
       <CardContent className="p-3">
         <div className="text-xs font-medium text-muted-foreground">{title}</div>
         <div className={`mt-0.5 text-xl font-bold ${textColorClasses[color]}`}>{value}</div>
@@ -78,11 +78,10 @@ export function MachineStatsCards() {
     <div className="grid gap-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-9">
       <StatCard title="Total Mesin" value={stats.total} color="default" />
       <StatCard title="ON Frame" value={stats.onFrame} color="blue" />
-      <StatCard title="ON (Idle + On Duty)" value={stats.onFrame} color="blue" />
       <StatCard title="Idle" value={stats.idle} color="blue" />
-      <StatCard title="On Duty" value={stats.onDuty} color="orange" />
-      <StatCard title="On Duty (detail ON)" value={stats.onDuty} color="orange" />
-      <StatCard title="Porsi ON Duty" value={`${stats.onDutyPct}%`} color="orange" />
+      <StatCard title="On Duty" value={stats.onDuty} color="green" />
+      <StatCard title="On Duty (detail ON)" value={stats.onDuty} color="green" />
+      <StatCard title="Porsi ON Duty" value={`${stats.onDutyPct}%`} color="green" />
       <StatCard title="OFF (independent)" value={stats.off} color="red" />
       <StatCard title="Persen OFF" value={`${stats.offPct}%`} color="red" />
     </div>

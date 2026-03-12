@@ -8,77 +8,98 @@
 :root {
   --radius: 0.75rem;
 
-  /* Light theme */
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Light theme - Softer, eye-friendly colors */
+  /* Background: Sky Blue - Bright midday sky blue */
+  --background: 187 222 251;
+  /* Foreground: #0F172A - Deep Slate (not harsh black) */
+  --foreground: 15 23 42;
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  /* Card: Sky Blue for light mode (#87CEEB) */
+  --card: 135 206 235;
+  --card-foreground: 15 23 42;
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover: 255 255 255;
+  --popover-foreground: 15 23 42;
 
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  /* Primary: #3B82F6 - Royal Blue for professional navigation */
+  --primary: 59 130 246;
+  --primary-foreground: 255 255 255;
 
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  --secondary: 241 245 249;
+  --secondary-foreground: 15 23 42;
 
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted: 241 245 249;
+  /* Text Secondary: #64748B - Slate Grey */
+  --muted-foreground: 100 116 139;
 
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --accent: 241 245 249;
+  --accent-foreground: 15 23 42;
 
-  --destructive: oklch(0.577 0.245 27.325);
+  /* Softer destructive: #EF4444 */
+  --destructive: 239 68 68;
 
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: 226 232 240;
+  --input: 226 232 240;
+  --ring: 59 130 246;
+  
+  /* Card border - lighter blue for sky theme */
+  --card-border: 173 216 230;
 
   /* Sidebar tokens (LIGHT) */
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.145 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar: 248 250 252;
+  --sidebar-foreground: 15 23 42;
+  --sidebar-accent: 241 245 249;
+  --sidebar-accent-foreground: 15 23 42;
+  --sidebar-border: 226 232 240;
 }
 
 .dark {
-  /* Dark theme (nyaman, gak nyolot) */
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
+  /* Dark theme - Professional Deep Navy Blue (NOT pure black) */
+  /* Background: Soft navy blue - comfortable for eyes */
+  --background: oklch(0.18 0.02 260);
+  /* Foreground: Soft warm white - reduced eye strain */
+  --foreground: oklch(0.95 0.01 260);
 
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
+  /* Card: Elevated surface with subtle blue tint */
+  --card: oklch(0.22 0.02 260);
+  --card-foreground: oklch(0.95 0.01 260);
 
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  /* Popover: Same as card for consistency */
+  --popover: oklch(0.22 0.02 260);
+  --popover-foreground: oklch(0.95 0.01 260);
 
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  /* Primary: Soft blue - professional and readable */
+  --primary: oklch(0.75 0.05 260);
+  --primary-foreground: oklch(0.2 0.02 260);
 
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
+  /* Secondary: Muted surface for containers */
+  --secondary: oklch(0.26 0.02 260);
+  --secondary-foreground: oklch(0.9 0.01 260);
 
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  /* Muted: Subtle backgrounds */
+  --muted: oklch(0.26 0.02 260);
+  /* Muted foreground: Softer gray with slight blue tint */
+  --muted-foreground: oklch(0.7 0.02 260);
 
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Accent: Subtle highlight */
+  --accent: oklch(0.28 0.02 260);
+  --accent-foreground: oklch(0.95 0.01 260);
 
-  --destructive: oklch(0.704 0.191 22.216);
+  /* Destructive: Soft red */
+  --destructive: oklch(0.6 0.18 25);
 
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  /* Borders: Subtle, not harsh */
+  --border: oklch(1 0 0 / 15%);
+  --input: oklch(1 0 0 / 10%);
+  /* Ring: Blue accent */
+  --ring: oklch(0.6 0.05 260);
 
-  /* Sidebar tokens (DARK) */
-  --sidebar: oklch(0.17 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  /* Sidebar tokens (DARK) - Navy Blue */
+  --sidebar: oklch(0.15 0.02 260);
+  --sidebar-foreground: oklch(0.95 0.01 260);
+  --sidebar-accent: oklch(0.28 0.02 260);
+  --sidebar-accent-foreground: oklch(0.95 0.01 260);
+  --sidebar-border: oklch(1 0 0 / 12%);
 }
 
 @theme inline {
@@ -120,11 +141,512 @@
   * {
     @apply border-border outline-ring/50;
   }
-  html, body {
+  html {
     height: 100%;
+    -webkit-overflow-scrolling: touch;
   }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+    min-height: 100%;
+    height: auto;
+    overflow-x: hidden;
+  }
+  
+  /* Enable smooth scrolling on iOS */
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Base font size adjustments for better desktop readability */
+  html {
+    font-size: 16px;
+  }
+
+  /* Larger screens get bigger base font */
+  @media (min-width: 1280px) {
+    html {
+      font-size: 16px;
+    }
+  }
+
+  @media (min-width: 1536px) {
+    html {
+      font-size: 17px;
+    }
+  }
+
+  @media (min-width: 1920px) {
+    html {
+      font-size: 18px;
+    }
   }
 }
+
+/* Sun floating animation */
+@keyframes sun-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(5deg);
+  }
+}
+
+/* Sun rays rotation */
+@keyframes sun-rays {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Cloud drift animation - subtle horizontal movement */
+@keyframes cloud-drift {
+  0% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(15px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* Cloud drift slow - for larger cloud */
+@keyframes cloud-drift-slow {
+  0% {
+    transform: translateX(-10px);
+  }
+  50% {
+    transform: translateX(10px);
+  }
+  100% {
+    transform: translateX(-10px);
+  }
+}
+
+.animate-sun-float {
+  animation: sun-float 4s ease-in-out infinite;
+}
+
+.animate-sun-rays {
+  animation: sun-rays 20s linear infinite;
+  transform-origin: center;
+}
+
+.animate-cloud-drift {
+  animation: cloud-drift 8s ease-in-out infinite;
+}
+
+.animate-cloud-drift-slow {
+  animation: cloud-drift-slow 12s ease-in-out infinite;
+}
+
+/* Night mode animations */
+/* Moon floating - subtle bobbing with gentle rotation */
+@keyframes moon-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(3deg);
+  }
+}
+
+/* Twinkling stars - different patterns */
+@keyframes star-twinkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2) rotate(15deg);
+  }
+}
+
+/* Sparkle effect for diamond stars */
+@keyframes star-sparkle {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(0.9);
+    filter: brightness(1);
+  }
+  25% {
+    opacity: 0.8;
+    transform: scale(1.1);
+    filter: brightness(1.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1.5);
+  }
+  75% {
+    opacity: 0.7;
+    transform: scale(1.05);
+    filter: brightness(1.2);
+  }
+}
+
+/* Gentle pulse for round stars */
+@keyframes star-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+    filter: blur(0.5px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+    filter: blur(0px);
+  }
+}
+
+/* Night cloud drift - slower, more subtle */
+@keyframes night-cloud-drift {
+  0% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(10px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* Cloud float for night mode */
+@keyframes night-cloud-float {
+  0%, 100% {
+    transform: translateX(0) translateY(0);
+  }
+  33% {
+    transform: translateX(8px) translateY(-2px);
+  }
+  66% {
+    transform: translateX(-5px) translateY(1px);
+  }
+}
+
+.animate-moon-float {
+  animation: moon-float 5s ease-in-out infinite;
+}
+
+.animate-star-twinkle {
+  animation: star-twinkle 2s ease-in-out infinite;
+}
+
+.animate-star-sparkle {
+  animation: star-sparkle 1.5s ease-in-out infinite;
+}
+
+.animate-star-pulse {
+  animation: star-pulse 2.5s ease-in-out infinite;
+}
+
+.animate-night-cloud-drift {
+  animation: night-cloud-drift 12s ease-in-out infinite;
+}
+
+.animate-night-cloud-float {
+  animation: night-cloud-float 15s ease-in-out infinite;
+}
+
+/* ===========================================
+   Login/Logout Animations - POP UP STYLE
+   =========================================== */
+
+/* Login Success Animation - Pop up with checkmark */
+@keyframes login-success-pop {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  70% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes login-success-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 40px 10px rgba(34, 197, 94, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 20px 5px rgba(34, 197, 94, 0.2);
+  }
+}
+
+.animate-login-success {
+  animation: login-success-pop 0.6s ease-out forwards, login-success-glow 1s ease-out 0.3s forwards;
+}
+
+/* Login Failure Animation - Shake effect */
+@keyframes login-fail-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-8px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(8px);
+  }
+}
+
+@keyframes login-fail-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 30px 10px rgba(239, 68, 68, 0.4);
+  }
+}
+
+.animate-login-fail {
+  animation: login-fail-shake 0.5s ease-in-out, login-fail-pulse 0.5s ease-in-out;
+}
+
+/* Logout Animation - Fade out and slide away */
+@keyframes logout-fade-slide {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  20% {
+    transform: translateY(-10px);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+}
+
+.animate-logout {
+  animation: logout-fade-slide 0.5s ease-in forwards;
+}
+
+/* Page Transition - Fade in */
+@keyframes page-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-in {
+  animation: page-fade-in 0.4s ease-out forwards;
+}
+
+/* Success Checkmark Animation */
+@keyframes checkmark-draw {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes checkmark-scale {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-checkmark {
+  animation: checkmark-scales ease-out forwards 0.4;
+}
+
+.animate-checkmark path {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: checkmark-draw 0.4s ease-out 0.2s forwards;
+}
+
+/* ===========================================
+   Theme Transition Animation
+   =========================================== */
+
+/* Theme transition overlay - flash effect */
+@keyframes theme-flash-light {
+  0% {
+    opacity: 0;
+    background-color: transparent;
+  }
+  20% {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.9);
+  }
+  100% {
+    opacity: 0;
+    background-color: transparent;
+  }
+}
+
+@keyframes theme-flash-dark {
+  0% {
+    opacity: 0;
+    background-color: transparent;
+  }
+  20% {
+    opacity: 1;
+    background-color: rgba(15, 23, 42, 0.9);
+  }
+  100% {
+    opacity: 0;
+    background-color: transparent;
+  }
+}
+
+/* Theme transition - smooth color fade */
+.theme-transition {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Sun/moon transition animation */
+@keyframes theme-icon-spin {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(0.5);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+.animate-theme-switch {
+  animation: theme-icon-spin 0.5s ease-in-out;
+}
+
+/* Sun/Moon swap animation classes */
+.animate-sun-exit-right {
+  animation: sun-exit-right 0.7s ease-in-out forwards;
+}
+
+.animate-moon-enter-left {
+  animation: moon-enter-left 0.7s ease-in-out forwards;
+}
+
+.animate-moon-exit-left {
+  animation: moon-exit-left 0.7s ease-in-out forwards;
+}
+
+.animate-sun-enter-right {
+  animation: sun-enter-right 0.7s ease-in-out forwards;
+}
+
+/* Theme transition animations */
+/* Sun/Moon swap animation - sun goes right, moon enters from left */
+@keyframes sun-exit-right {
+  0% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100px) scale(0.5);
+    opacity: 0;
+  }
+}
+
+@keyframes moon-enter-left {
+  0% {
+    transform: translateX(-100px) scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Moon goes left, sun enters from right */
+@keyframes moon-exit-left {
+  0% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-100px) scale(0.5);
+    opacity: 0;
+  }
+}
+
+@keyframes sun-enter-right {
+ 0% {
+    transform: translateX(100px) scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Theme transition overlay animations */
+@keyframes theme-to-light {
+  0% {
+    opacity: 0;
+    background-color: rgba(15, 23, 42, 0.95);
+  }
+  30% {
+    opacity: 1;
+    background-color: rgba(135, 206, 235, 0.95);
+  }
+  100% {
+    opacity: 0;
+    background-color: rgba(135, 206, 235, 0);
+  }
+}
+
+@keyframes theme-to-dark {
+  0% {
+    opacity: 0;
+    background-color: rgba(135, 206, 235, 0.95);
+  }
+  30% {
+    opacity: 1;
+    background-color: rgba(15, 23, 42, 0.95);
+  }
+  100% {
+    opacity: 0;
+    background-color: rgba(15, 23, 42, 0);
+  }
+}
+
+.animate-theme-to-light {
+  animation: theme-to-light 0.5s ease-in-out forwards;
+}
+
+.animate-theme-to-dark {
+  animation: theme-to-dark 0.5s ease-in-out forwards;
+}
+

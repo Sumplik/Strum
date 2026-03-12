@@ -38,11 +38,19 @@ function formatApiDate(date: Date): string {
 interface SummaryRow {
   device_id: string;
   name: string;
+  // Current metadata from device (latest info)
+  location?: string | null;
+  threshold?: number | null;
   summary: {
     idle_hours: string;
     onduty_hours: string;
     on_total_hours: string;
     off_hours: string;
+    // Operational hours breakdown
+    operational_on_hours: string;
+    operational_off_hours: string;
+    operational_idle_hours: string;
+    total_operational_hours: string;
     availability_percent: string;
   };
 }
@@ -74,6 +82,7 @@ export default function ReportsDailyPage() {
   });
 
   // Combine device info with summary data from API
+  // Use current metadata from API response (which reflects latest device info)
   const summaryData: SummaryRow[] = (() => {
     if (!summaryQuery.data?.success || !devicesQuery.data?.success) {
       return [];
@@ -84,9 +93,15 @@ export default function ReportsDailyPage() {
 
     return summaries.map((item: DailySummary) => {
       const device = devices.find((d: Device) => d.id === item.device_id);
+      // Prioritize current metadata from API (latest info), fallback to device data
+      const currentLocation = item.current?.location ?? device?.location ?? null;
+      const currentThreshold = item.current?.threshold ?? device?.thresholdDuty ?? null;
+      
       return {
         device_id: item.device_id,
         name: device?.id || item.device_id,
+        location: currentLocation,
+        threshold: currentThreshold,
         summary: item.summary,
       };
     });
@@ -106,46 +121,50 @@ export default function ReportsDailyPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-[120px] rounded-2xl" />
-        <Skeleton className="h-[400px] rounded-2xl" />
+      <div className="space-y-3 sm:space-y-4">
+        <Skeleton className="h-[100px] sm:h-[120px] rounded-2xl" />
+        <Skeleton className="h-[300px] sm:h-[400px] rounded-2xl" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Header Section */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-semibold">Summary Harian (Availability)</CardTitle>
+      <Card className="bg-white dark:bg-[var(--card)]">
+        <CardHeader className="pb-2 px-3 sm:px-4 pt-3 sm:pt-4">
+          <CardTitle className="text-base sm:text-lg font-semibold">Summary Harian (Availability)</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            {/* Tanggal Input with DatePicker - Left Side */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Tanggal</span>
-              <DatePicker
-                date={selectedDate}
-                onSelect={handleDateSelect}
-                placeholder="Pilih tanggal"
-              />
+        <CardContent className="p-3 sm:p-6">
+          {/* Filter Section - Horizontal Layout */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {/* Left: Tanggal Filter */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground whitespace-nowrap">Tanggal:</span>
+                <DatePicker
+                  date={selectedDate}
+                  onSelect={handleDateSelect}
+                  placeholder="Pilih"
+                  className="w-[130px] sm:w-auto"
+                />
+              </div>
             </div>
 
-            {/* Avg Availability + Refresh Button - Right Side */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5">
-                <span className="text-sm text-muted-foreground">Avg Availability:</span>
-                <span className="text-lg font-bold">{avgAvailability}%</span>
+            {/* Right: Avg Availability + Refresh Button */}
+            <div className="flex items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
+              <div className="flex items-center gap-2 rounded-lg bg-muted px-2 sm:px-3 py-1.5">
+                <span className="text-xs sm:text-sm text-muted-foreground">Avg:</span>
+                <span className="text-base sm:text-lg font-bold">{avgAvailability}%</span>
               </div>
               <Button
                 variant="outline"
                 size="icon"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="h-8 w-8"
+                className="h-8 w-8 sm:h-9 sm:w-9"
               >
-                <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+                <RefreshCw className={cn("h-3 w-3 sm:h-4 sm:w-4", isRefreshing && "animate-spin")} />
               </Button>
             </div>
           </div>
@@ -153,15 +172,17 @@ export default function ReportsDailyPage() {
       </Card>
 
       {/* Table Section */}
-      <Card>
+      <Card className="bg-white dark:bg-[var(--card)]">
         <CardContent className="p-0">
+          <div className="overflow-x-auto scrollbar-thin">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[250px]">Mesin</TableHead>
+                <TableHead className="min-w-[120px] sm:w-[250px]">Mesin</TableHead>
+                <TableHead className="hidden sm:table-cell">Lokasi</TableHead>
                 <TableHead className="text-right">ON</TableHead>
-                <TableHead className="text-right">Idle</TableHead>
-                <TableHead className="text-right">On Duty</TableHead>
+                <TableHead className="text-right hidden md:table-cell">Idle</TableHead>
+                <TableHead className="text-right hidden lg:table-cell">On Duty</TableHead>
                 <TableHead className="text-right">OFF</TableHead>
               </TableRow>
             </TableHeader>
@@ -170,35 +191,38 @@ export default function ReportsDailyPage() {
                   <TableRow key={item.device_id}>
                     <TableCell className="font-medium">
                       <div>
-                        <span className="font-bold">{item.device_id}</span>
-                        <span className="ml-2 text-muted-foreground text-xs">
-                          {item.name}
-                        </span>
+                        <span className="font-bold text-sm">{item.device_id}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="hidden sm:table-cell">
+                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        {item.location ?? "-"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-sm">
                       {formatHours(item.summary.on_total_hours)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right text-sm hidden md:table-cell">
                       {formatHours(item.summary.idle_hours)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right text-sm hidden lg:table-cell">
                       {formatHours(item.summary.onduty_hours)}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {formatHours(item.summary.off_hours)}
+                    <TableCell className="text-right text-sm">
+                      {formatHours(item.summary.operational_off_hours)}
                     </TableCell>
                   </TableRow>
                 ))}
               {summaryData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     No data available for this date
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

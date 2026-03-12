@@ -4,16 +4,27 @@ import { http } from "@/lib/http";
 
 const BASE_URL =
   (import.meta as any).env.VITE_API_BASE_URL?.toString().trim() ||
-  "http://localhost:3001";
+  "http://127.0.0.1:3001";
 
 // Types for summary data
 export interface DailySummary {
   device_id: string;
+  // Current metadata - untuk menampilkan info terbaru di dashboard
+  current?: {
+    location: string | null;
+    threshold: number | null;
+    ipAddress: string | null;
+  };
   summary: {
     idle_hours: string;
     onduty_hours: string;
     on_total_hours: string;
     off_hours: string;
+    // Operational hours breakdown
+    operational_on_hours: string;
+    operational_off_hours: string;
+    operational_idle_hours: string;
+    total_operational_hours: string;
     availability_percent: string;
   };
 }
@@ -57,13 +68,13 @@ export const api = {
   // Get operational hours
   getOperasional: () =>
     http<{ success: boolean; data: { start: string; end: string } }>(
-      `${BASE_URL}/api/operasional`,
+      `${BASE_URL}/api/set-operasional`,
     ),
 
-// Set operational hours
+  // Set operational hours
   setOperasional: (start: string, end: string) =>
     http<{ success: boolean; data: { start: string; end: string }; message?: string }>(
-      `${BASE_URL}/api/operasional`,
+      `${BASE_URL}/api/set-operasional`,
       { method: "POST", body: JSON.stringify({ start, end }) },
     ),
 

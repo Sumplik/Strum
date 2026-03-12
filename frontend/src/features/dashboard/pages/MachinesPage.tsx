@@ -57,15 +57,15 @@ export default function MachinesPage() {
 
   const filters: Array<{ value: FilterType; label: string; count: number; color: string }> = [
     { value: "all", label: "All", count: stats.total, color: "bg-slate-500" },
-    { value: "on_duty", label: "On Duty", count: stats.onDuty, color: "bg-amber-500" },
-    { value: "idle", label: "Idle", count: stats.idle, color: "bg-green-600" },
+    { value: "on_duty", label: "On Duty", count: stats.onDuty, color: "bg-green-600" },
+    { value: "idle", label: "Idle", count: stats.idle, color: "bg-blue-600" },
     { value: "off", label: "OFF", count: stats.off, color: "bg-red-500" },
   ];
 
   return (
     <div className="space-y-4">
       {/* Search and Filter Card */}
-      <Card>
+      <Card className="bg-white dark:bg-[var(--card)]">
         <CardContent className="p-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             {/* Title - Left Side */}
@@ -76,8 +76,9 @@ export default function MachinesPage() {
 
             {/* Action Area - Right Side */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-              {/* Filter Tabs with Color Dots */}
-              <div className="flex rounded-lg bg-muted p-1">
+              {/* Filter Tabs with Color Dots - Scrollable on mobile */}
+              <div className="overflow-x-auto -mx-2 px-2 sm:overflow-visible sm:mx-0 sm:px-0">
+              <div className="flex rounded-lg bg-slate-200 dark:bg-slate-700 p-1 min-w-max">
                 {filters.map((f) => (
                   <button
                     key={f.value}
@@ -85,8 +86,8 @@ export default function MachinesPage() {
                     className={cn(
                       "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
                       filter === f.value
-                        ? "bg-background shadow-sm text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "bg-slate-400 dark:bg-slate-600 shadow-sm text-white font-bold"
+                        : "text-slate-600 dark:text-slate-300 hover:text-foreground"
                     )}
                   >
                     <span className={cn("h-2 w-2 rounded-full", f.color)}></span>
@@ -94,6 +95,7 @@ export default function MachinesPage() {
                     <span className="text-xs opacity-70">({f.count})</span>
                   </button>
                 ))}
+              </div>
               </div>
 
               {/* Search Input with Icon */}

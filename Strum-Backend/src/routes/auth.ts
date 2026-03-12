@@ -32,7 +32,8 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         httpOnly: true,
         maxAge: 7 * 86400, // 7 hari
         path: "/",
-        sameSite: "lax",
+        sameSite: "none", // Allow cross-origin cookies (required for production)
+        secure: true, // Required when sameSite is "none" (HTTPS only)
       });
 
       return { success: true, message: "Login berhasil" };
@@ -48,25 +49,19 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     auth_session.remove();
     return { success: true, message: "Logout berhasil" };
   })
-  .get("/me", async ({ jwt, cookie: { auth_session }, set }) => {
-    const token = auth_session.value;
-    
-    if (!token) {
-      set.status = 401;
-      return { success: false, message: "Not authenticated" };
-    }
 
-    try {
-      const payload = await jwt.verify(token as string);
-      return { 
-        success: true, 
-        user: { 
-          id: (payload as any).id, 
-          username: (payload as any).username 
-        } 
+  // 3. Verify Auth - Check if user is logged in
+  .get(
+    "/me",
+    async ({ jwt, cookie: { auth_session }, set }) => {
+      const profile = await jwt.verify(auth_session.value as string);
+      if (!profile) {
+        set.status = 401;
+        return { success: false, message: "Not authenticated" };
+      }
+      return {
+        success: true,
+        user: { id: profile.id, username: profile.username },
       };
-    } catch (e) {
-      set.status = 401;
-      return { success: false, message: "Invalid token" };
-    }
-  });
+    },
+  );

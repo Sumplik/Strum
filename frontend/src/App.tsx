@@ -2,20 +2,23 @@ import * as React from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Providers } from "@/app/providers";
 import { useDashboardRoute } from "@/app/router";
+import { fmtDateTime } from "@/lib/utils";
 
 import OverviewPage from "@/features/dashboard/pages/OverviewPage";
 import MachinesPage from "@/features/dashboard/pages/MachinesPage";
 import ReportsDailyPage from "@/features/dashboard/pages/ReportsDailyPage";
 import TrendsPage from "@/features/dashboard/pages/TrendsPage";
+import SettingsPage from "@/features/dashboard/pages/SettingsPage";
 import LoginPage from "@/features/auth/pages/LoginPage";
 import { api } from "@/lib/api";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 function useLastUpdateTicker(ms = 3000) {
   const [txt, setTxt] = React.useState<string>("Last update: -");
 
   React.useEffect(() => {
-    const tick = () => setTxt(`Last update: ${new Date().toLocaleString("id-ID")}`);
+    const tick = () => setTxt(`Last update: ${fmtDateTime(new Date())}`);
     tick();
     const id = setInterval(tick, ms);
     return () => clearInterval(id);
@@ -26,8 +29,8 @@ function useLastUpdateTicker(ms = 3000) {
 
 export default function App() {
   const { route, setRoute } = useDashboardRoute();
-  const [notifEnabled, setNotifEnabled] = React.useState(false);
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+  const [showPageAnimation, setShowPageAnimation] = React.useState(false);
   const lastUpdateText = useLastUpdateTicker(3000);
 
   // Check for existing session on mount
@@ -51,28 +54,6 @@ export default function App() {
     checkAuth();
   }, []);
 
-  // notif request permission
-  React.useEffect(() => {
-    if (!notifEnabled) return;
-    if (!("Notification" in window)) {
-      setNotifEnabled(false);
-      alert("Browser tidak support Notification API.");
-      return;
-    }
-    if (Notification.permission === "granted") return;
-    if (Notification.permission === "denied") {
-      setNotifEnabled(false);
-      alert("Izin notifikasi ditolak. Silakan aktifkan dari browser setting.");
-      return;
-    }
-    Notification.requestPermission().then((p) => {
-      if (p !== "granted") {
-        setNotifEnabled(false);
-        alert("Izin notifikasi tidak diberikan.");
-      }
-    });
-  }, [notifEnabled]);
-
   const pageTitle =
     route === "overview"
       ? "Overview"
@@ -80,13 +61,22 @@ export default function App() {
       ? "Monitoring Mesin"
       : route === "reports"
       ? "Summary Harian"
-      : "Trend Mingguan/Bulanan";
+      : route === "trends"
+      ? "Trend Mingguan/Bulanan"
+      : "Pengaturan";
 
   const handleLoginSuccess = () => {
+    setShowPageAnimation(true);
     setIsLoggedIn(true);
   };
 
   const handleLogout = async () => {
+    // Show logout toast
+    toast.info("Logout Berhasil", {
+      description: "Anda telah keluar dari sistem",
+      duration: 3000,
+    });
+    
     try {
       await api.logout();
     } catch (e) {
@@ -120,22 +110,23 @@ export default function App() {
 
   return (
     <Providers>
-      <AppShell
-        route={route}
-        onRouteChange={setRoute}
-        title={pageTitle}
-        subtitle="Availability Monitoring • ESP32 → MQTT → Server → PostgreSQL"
-        mqttLabel="MQTT: Server Connected"
-        lastUpdateText={lastUpdateText}
-        notifEnabled={notifEnabled}
-        onNotifToggle={setNotifEnabled}
-        onLogout={handleLogout}
-      >
-        {route === "overview" ? <OverviewPage /> : null}
-        {route === "machines" ? <MachinesPage /> : null}
-        {route === "reports" ? <ReportsDailyPage /> : null}
-        {route === "trends" ? <TrendsPage /> : null}
-      </AppShell>
+      <div className={showPageAnimation ? "animate-page-in" : ""}>
+        <AppShell
+          route={route}
+          onRouteChange={setRoute}
+          title={pageTitle}
+          subtitle="Availability Monitoring • ESP32 → MQTT → Server → PostgreSQL"
+          mqttLabel="MQTT: Server Connected"
+          lastUpdateText={lastUpdateText}
+          onLogout={handleLogout}
+        >
+          {route === "overview" ? <OverviewPage /> : null}
+          {route === "machines" ? <MachinesPage /> : null}
+          {route === "reports" ? <ReportsDailyPage /> : null}
+          {route === "trends" ? <TrendsPage /> : null}
+          {route === "settings" ? <SettingsPage /> : null}
+        </AppShell>
+      </div>
     </Providers>
   );
 }

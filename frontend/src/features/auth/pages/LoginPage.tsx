@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, Loader2, Factory } from "lucide-react";
+import { AlertCircle, Loader2, Factory, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -15,6 +16,8 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [showErrorAnimation, setShowErrorAnimation] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,12 +27,44 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     try {
       const response = await api.login(username, password);
       if (response.success) {
-        onLoginSuccess();
+        // Show success animation
+        setShowSuccessAnimation(true);
+        
+        // Show success toast
+        toast.success("Login Berhasil!", {
+          description: "Selamat datang di sistem monitoring STRUM",
+          duration: 3000,
+          icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
+        });
+        
+        // Small delay for animation before calling success
+        setTimeout(() => {
+          onLoginSuccess();
+        }, 800);
+        return;
       } else {
         setError(response.message || "Login gagal");
+        // Trigger error animation
+        setShowErrorAnimation(true);
+        setTimeout(() => setShowErrorAnimation(false), 500);
+        
+        // Show error toast
+        toast.error("Login Gagal", {
+          description: response.message || "Username atau password salah",
+          duration: 3000,
+        });
       }
     } catch (err: any) {
       setError(err.message || "Terjadi kesalahan saat login");
+      // Trigger error animation
+      setShowErrorAnimation(true);
+      setTimeout(() => setShowErrorAnimation(false), 500);
+      
+      // Show error toast
+      toast.error("Login Gagal", {
+        description: err.message || "Terjadi kesalahan saat login",
+        duration: 3000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -43,7 +78,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl"></div>
       </div>
 
-      <Card className="w-full max-w-md relative z-10 border-slate-700/50 bg-slate-800/80 backdrop-blur-xl shadow-2xl">
+      <Card className={`w-full max-w-md relative z-10 border-slate-700/50 bg-slate-800/80 backdrop-blur-xl shadow-2xl ${showSuccessAnimation ? 'animate-login-success' : ''} ${showErrorAnimation ? 'animate-login-fail' : ''}`}>
         <CardHeader className="space-y-4 text-center pb-2">
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
             <Factory className="w-8 h-8 text-white" />

@@ -1,5 +1,86 @@
 import mqtt from "mqtt";
 import { prisma } from "./db";
+import { Server as SocketServer } from "socket.io";
+
+let io: SocketServer | { emit: (event: string, data: any) => void } | null = null;
+
+const messageQueue: Array<() => Promise<void>> = [];
+let isProcessing = false;
+
+let cachedStats = { total: 0, onDuty: 0, idle: 0, off: 0 };
+let lastStatsBroadcast = 0;
+const STATS_BROADCAST_INTERVAL = 1000;
+
+export function setSocketIO(socketIO: SocketServer | { emit: (event: string, data: any) => void }) {
+  io = socketIO as any;
+}
+
+function broadcastDeviceUpdate(data: any) {
+  if (io) {
+    io.emit("device:update", { type: "device:update", data });
+  }
+}
+
+function broadcastStatsUpdate(data: any) {
+  if (io) {
+    io.emit("stats:update", { type: "stats:update", data });
+  }
+}
+
+async function processQueue() {
+  if (isProcessing || messageQueue.length === 0) return;
+  
+  isProcessing = true;
+  console.log(`📥 Processing queue: ${messageQueue.length} messages pending`);
+  
+  while (messageQueue.length > 0) {
+    const processMessage = messageQueue[0];
+    if (processMessage) {
+      try {
+        await processMessage();
+        messageQueue.shift();
+      } catch (error) {
+        console.error("❌ Error processing queued MQTT message:", error);
+        messageQueue.shift();
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  
+  isProcessing = false;
+  console.log("✅ Queue processing complete");
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 100
+): Promise<T> {
+  let lastError: Error | undefined;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      const errorCode = (error as any)?.code;
+      if (errorCode !== 'P2028' && errorCode !== 'P1008' && !errorMessageIncludes(error, 'transaction')) {
+        throw error;
+      }
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(`⚠️ Retrying after ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError;
+}
+
+function errorMessageIncludes(error: any, text: string): boolean {
+  const message = error?.message?.toString()?.toLowerCase() || '';
+  return message.includes(text.toLowerCase());
+}
 
 export function initMQTT() {
   const mqttClient = mqtt.connect(
@@ -13,73 +94,124 @@ export function initMQTT() {
 
   mqttClient.on("connect", () => {
     console.log("✅ Connected to Mosquitto Broker");
+    mqttClient.subscribe("mesin/telemetry/#");
     mqttClient.subscribe("mesin/telemetry");
   });
 
-  mqttClient.on("message", async (topic, message) => {
-    if (topic === "mesin/telemetry") {
-      try {
-        const payload = JSON.parse(message.toString());
-        if (!payload.device_id || !payload.data) return;
-
-        const timestamp = new Date(payload.connection.ts * 1000);
-        const statusMesin = payload.data.status_mesin; // "off", "idle", "on_duty"
-
-        // Ekstrak field-field tambahan dari payload
-        const ipAddress = payload.connection?.ipaddress || null;
-        const voltase = payload.data?.voltase || null;
-        const arus = payload.data?.arus || null;
-        const suhu = payload.data?.suhu || null;
-        const kelembapan = payload.data?.kelembapan || null;
-        const thresholdIdle = payload.threshold || null;
-        const thresholdDuty = payload.threshold || null;
-        const location = payload.location || null; // W1, W2, W3, W4, W5, G1
-
-        await prisma.$transaction([
-          prisma.device.upsert({
-            where: { id: payload.device_id },
-            update: {
-              status: statusMesin,
-              lastSeen: timestamp,
-              rawData: payload, // Simpan RAW JSON
-              // Field-field tambahan
-              ipAddress,
-              voltase,
-              arus,
-              suhu,
-              kelembapan,
-              thresholdIdle,
-              thresholdDuty,
-              location,
-            },
-            create: {
-              id: payload.device_id,
-              status: statusMesin,
-              lastSeen: timestamp,
-              rawData: payload, // Simpan RAW JSON
-              // Field-field tambahan
-              ipAddress,
-              voltase,
-              arus,
-              suhu,
-              kelembapan,
-              thresholdIdle,
-              thresholdDuty,
-              location,
-            },
-          }),
-          prisma.deviceLog.create({
-            data: {
-              deviceId: payload.device_id,
-              timestamp: timestamp,
-              status: statusMesin,
-              rawData: payload, // Simpan RAW JSON
-            },
-          }),
-        ]);
-      } catch (error) {
-        console.error("❌ Error processing MQTT message:", error);
-      }
+  mqttClient.on("message", async (topic: string, message: Buffer) => {
+    if (topic.startsWith("mesin/telemetry")) {
+      messageQueue.push(() => processTelemetryMessage(message));
+      processQueue();
     }
   });
+}
+
+async function processTelemetryMessage(message: Buffer) {
+  try {
+    const payload = JSON.parse(message.toString());
+    if (!payload.device_id || !payload.data) return;
+
+    // Handle timestamp
+    let timestamp: Date;
+    const tsValue = payload.connection?.ts;
+    if (typeof tsValue === 'number') {
+      timestamp = new Date(tsValue > 9999999999 ? tsValue : tsValue * 1000);
+    } else if (typeof tsValue === 'string') {
+      timestamp = new Date(tsValue.replace(' ', 'T'));
+    } else {
+      timestamp = new Date();
+    }
+
+    // Handle status - override berdasarkan arus dan threshold
+    let statusMesin: string;
+    const rawStatus = payload.data.status_mesin?.toString().toLowerCase();
+    const arus = payload.data?.arus ?? 0;
+    const threshold = payload.threshold ?? 0;
+    
+    // Jika OFF, tetap OFF (mesin mati)
+    if (rawStatus === 'off') {
+      statusMesin = 'off';
+    } else {
+      // Hitung status berdasarkan arus dan threshold
+      if (arus >= threshold) {
+        statusMesin = 'on_duty';
+      } else {
+        statusMesin = 'idle';
+      }
+    }
+
+    const ipAddress = payload.connection?.ipaddress || null;
+    const voltase = payload.data?.voltase || null;
+    const suhu = payload.data?.suhu || null;
+    const kelembapan = payload.data?.kelembapan || null;
+    const thresholdDuty = payload.threshold || null;
+    const location = payload.location || null;
+
+    await withRetry(async () => {
+      await prisma.device.upsert({
+        where: { id: payload.device_id },
+        update: {
+          status: statusMesin,
+          lastSeen: timestamp,
+          rawData: payload,
+          ipAddress,
+          voltase,
+          arus,
+          suhu,
+          kelembapan,
+          thresholdDuty,
+          location,
+        },
+        create: {
+          id: payload.device_id,
+          status: statusMesin,
+          lastSeen: timestamp,
+          rawData: payload,
+          ipAddress,
+          voltase,
+          arus,
+          suhu,
+          kelembapan,
+          thresholdDuty,
+          location,
+        },
+      });
+    });
+
+    await withRetry(async () => {
+      await prisma.deviceLog.create({
+        data: {
+          deviceId: payload.device_id,
+          timestamp: timestamp,
+          status: statusMesin,
+          rawData: payload,
+        },
+      });
+    });
+
+    broadcastDeviceUpdate({
+      device_id: payload.device_id,
+      status: statusMesin,
+      lastSeen: timestamp,
+      location,
+      voltase,
+      arus,
+      suhu,
+      kelembapan,
+    });
+
+    cachedStats.total = await prisma.device.count();
+    cachedStats.onDuty = await prisma.device.count({ where: { status: "on_duty" } });
+    cachedStats.idle = await prisma.device.count({ where: { status: "idle" } });
+    cachedStats.off = await prisma.device.count({ where: { status: "off" } });
+
+    const now = Date.now();
+    if (now - lastStatsBroadcast >= STATS_BROADCAST_INTERVAL) {
+      broadcastStatsUpdate(cachedStats);
+      lastStatsBroadcast = now;
+    }
+
+  } catch (error) {
+    console.error("❌ Error processing MQTT message:", error);
+  }
 }

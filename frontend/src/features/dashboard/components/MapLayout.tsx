@@ -25,16 +25,18 @@ function getDeviceLocation(device: Device): string | null {
 function getStatusColor(status: DeviceStatus | null | undefined): string {
   switch (status) {
     case "on_duty":
-      return "bg-amber-500";
+      return "bg-green-500 dark:bg-green-400";
     case "idle":
-      return "bg-green-600";
+      return "bg-blue-500 dark:bg-blue-400";
     case "off":
     default:
-      return "bg-red-500";
+      return "bg-red-500 dark:bg-red-400";
   }
 }
 
 export function MapLayout({ devices, filter, onFilterChange, onSelect }: MapLayoutProps): React.ReactElement {
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  
   // Toggle filter options
   const toggleFilters: Array<{ value: "all" | "on" | "idle" | "on_duty" | "off"; label: string }> = [
     { value: "all", label: "Semua" },
@@ -60,17 +62,17 @@ export function MapLayout({ devices, filter, onFilterChange, onSelect }: MapLayo
   }, [filteredDevices]);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <Card className={cn("bg-white dark:bg-[var(--card)]")}>
+      <CardHeader className="pb-2 px-3 sm:px-4 pt-3 sm:pt-4">
+        <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:justify-between">
           {/* Title */}
           <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            <CardTitle className="text-lg">Peta Lokasi Mesin</CardTitle>
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
+            <CardTitle className="text-base sm:text-lg">Peta Lokasi Mesin</CardTitle>
           </div>
 
           {/* Filter & Legend - Top Right */}
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end lg:gap-4">
             {/* Filter Toggle Buttons */}
             <div className="flex flex-wrap gap-1">
               {toggleFilters.map((f) => (
@@ -79,36 +81,41 @@ export function MapLayout({ devices, filter, onFilterChange, onSelect }: MapLayo
                   variant={filter === f.value ? "default" : "outline"}
                   size="sm"
                   onClick={() => onFilterChange(f.value)}
-                  className={cn("rounded-lg h-7 text-xs px-2", filter === f.value && "ring-2 ring-offset-1")}
+                  className={cn(
+                    "rounded-lg h-6 sm:h-7 text-[10px] sm:text-xs px-1.5 sm:px-2 transition-all",
+                    filter === f.value 
+                      ? "bg-slate-600 hover:bg-slate-700 ring-2 ring-offset-1 dark:ring-offset-slate-900 text-white font-bold border-slate-600" 
+                      : "hover:bg-slate-100 dark:hover:bg-slate-700"
+                  )}
                 >
                   {f.label}
                 </Button>
               ))}
             </div>
 
-            {/* Legend */}
-            <div className="flex items-center gap-3 text-xs">
-              <span className="text-muted-foreground">Legend:</span>
+            {/* Legend - hide on very small screens */}
+            <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs hidden xs:flex">
+              <span className={isDark ? "text-slate-400" : "text-slate-600"}>Legend:</span>
               <div className="flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
-                <span>On Duty</span>
+                <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-green-500 dark:bg-green-400"></span>
+                <span className={isDark ? "text-slate-300" : "text-slate-700"}>On Duty</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-green-600"></span>
-                <span>Idle</span>
+                <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-blue-500 dark:bg-blue-400"></span>
+                <span className={isDark ? "text-slate-300" : "text-slate-700"}>Idle</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full bg-red-500"></span>
-                <span>OFF</span>
+                <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-red-500 dark:bg-red-400"></span>
+                <span className={isDark ? "text-slate-300" : "text-slate-700"}>OFF</span>
               </div>
             </div>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent>
-        {/* Workshop Grid - 6 Cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <CardContent className="px-2 sm:px-4 pb-3 sm:pb-4">
+        {/* Workshop Grid - Responsive: 2 cols mobile, 3 cols tablet, 3 cols laptop, 6 cols on very large */}
+        <div className="grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3 xl:grid-cols-6">
           {WORKSHOPS.map((workshop) => {
             const workshopDevices = devicesByWorkshop[workshop] || [];
             const hasDevices = workshopDevices.length > 0;
@@ -117,7 +124,7 @@ export function MapLayout({ devices, filter, onFilterChange, onSelect }: MapLayo
               <div
                 key={workshop}
                 className={cn(
-                  "rounded-xl border bg-card p-3 transition-colors",
+                  "rounded-xl border-2 border-gray-300 dark:border-slate-600 bg-sky-100 dark:bg-[var(--card)] p-3 transition-colors",
                   !hasDevices && "opacity-60"
                 )}
               >

@@ -9,11 +9,11 @@ export function DashboardKpis() {
 
   if (statsQ.isLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-4">
-        <Skeleton className="h-[110px] rounded-2xl" />
-        <Skeleton className="h-[110px] rounded-2xl" />
-        <Skeleton className="h-[110px] rounded-2xl" />
-        <Skeleton className="h-[110px] rounded-2xl" />
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+        <Skeleton className="h-[100px] sm:h-[110px] rounded-2xl" />
+        <Skeleton className="h-[100px] sm:h-[110px] rounded-2xl" />
+        <Skeleton className="h-[100px] sm:h-[110px] rounded-2xl" />
+        <Skeleton className="h-[100px] sm:h-[110px] rounded-2xl" />
       </div>
     );
   }
@@ -30,9 +30,10 @@ export function DashboardKpis() {
   const on = stats.idle + stats.onDuty;
   const offPct = stats.total ? Math.round((stats.off / stats.total) * 1000) / 10 : 0;
   const onDutyPct = on ? Math.round((stats.onDuty / on) * 1000) / 10 : 0;
+  const idlePct = stats.total ? Math.round((stats.idle / stats.total) * 1000) / 10 : 0;
 
   return (
-    <div className="grid gap-4 md:grid-cols-4">
+    <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
       <KpiCard
         title="Total Mesin"
         value={stats.total}
@@ -40,22 +41,17 @@ export function DashboardKpis() {
       />
 
       <KpiCard
-        title="ON (Idle + On Duty)"
-        value={on}
+        title="Idle"
+        value={stats.idle}
         accent="onframe"
-        hint={
-          <div className="flex flex-wrap gap-2">
-            <KpiPill dot="green" label="Idle" value={stats.idle} />
-            <KpiPill dot="amber" label="On Duty" value={stats.onDuty} />
-          </div>
-        }
+        hint={<KpiPill dot="blue" label="Porsi Idle" value={`${idlePct}%`} tone="primary" />}
       />
 
       <KpiCard
         title="On Duty (detail ON)"
         value={stats.onDuty}
         accent="onduty"
-        hint={<KpiPill dot="blue" label="Porsi ON Duty" value={`${onDutyPct}%`} tone="primary" />}
+        hint={<KpiPill dot="green" label="Porsi ON Duty" value={`${onDutyPct}%`} tone="primary" />}
       />
 
       <KpiCard

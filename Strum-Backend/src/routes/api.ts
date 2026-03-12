@@ -1,16 +1,46 @@
 import { Elysia, t } from "elysia";
+import jwt from "@elysiajs/jwt";
 import { prisma } from "../db";
 import { calculateSummary } from "../utils/summary";
 
-// Semua routes adalah PUBLIC (tanpa autentikasi)
 export const apiRoutes = new Elysia({ prefix: "/api" })
+  .use(
+    jwt({
+      name: "jwt",
+      secret: process.env.JWT_SECRET || "SUPER_SECRET_KEY",
+    }),
+  )
+  // --- MIDDLEWARE AUTENTIKASI ---
+  .derive(async ({ jwt, cookie: { auth_session }, set }) => {
+    const profile = await jwt.verify(auth_session.value as string);
+    if (!profile) {
+      set.status = 401;
+      throw new Error("Unauthorized");
+    }
+    return { user: profile };
+  })
+
   // 1. Stats
   .get("/stats", async () => {
     const total = await prisma.device.count();
     const onDuty = await prisma.device.count({ where: { status: "on_duty" } });
     const idle = await prisma.device.count({ where: { status: "idle" } });
     const off = await prisma.device.count({ where: { status: "off" } });
-    return { success: true, data: { total, onDuty, idle, off } };
+
+    const totalOn = onDuty + idle;
+    const percentOnDuty = total === 0 ? 0 : (onDuty / total) * 100;
+
+    return {
+      success: true,
+      data: {
+        total,
+        on: totalOn,
+        idle,
+        onDuty,
+        off,
+        percentOnDuty: percentOnDuty.toFixed(2) + "%",
+      },
+    };
   })
 
   // 2. Device List
@@ -28,107 +58,152 @@ export const apiRoutes = new Elysia({ prefix: "/api" })
     return { success: true, data: device };
   })
 
-  // 4. Summary Range (HARUS di atas harian)
-  .get("/summary/range", async ({ query }) => {
-    const { start, end } = query as { start?: string; end?: string };
-    if (!start || !end) {
-      return { success: false, message: "Parameter start dan end diperlukan" };
-    }
-    const startDate = new Date(`${start}T00:00:00.000Z`);
-    const endDate = new Date(`${end}T23:59:59.999Z`);
-    const devices = await prisma.device.findMany({ select: { id: true } });
-    const results = await Promise.all(
-      devices.map(async (d) => ({
-        device_id: d.id,
-        summary: await calculateSummary(d.id, startDate, endDate),
-      })),
-    );
-    return { success: true, range: { startDate, endDate }, data: results };
+  // 3b. Get All Devices with Current Metadata (for frontend to display current info)
+  .get("/devices-metadata", async () => {
+    const devices = await prisma.device.findMany({
+      orderBy: { lastSeen: "desc" },
+      select: {
+        id: true,
+        ipAddress: true,
+        location: true,
+        thresholdDuty: true,
+        status: true,
+        lastSeen: true,
+      },
+    });
+    return { success: true, data: devices };
   })
 
-  // 5. Summary Harian
+  // 4. Summary Harian
   .get("/summary/harian/:tanggal", async ({ params: { tanggal } }) => {
+    // Format tanggal: YYYY-MM-DD
     const startDate = new Date(`${tanggal}T00:00:00.000Z`);
     const endDate = new Date(`${tanggal}T23:59:59.999Z`);
-    const devices = await prisma.device.findMany({ select: { id: true } });
+
+    // Get devices with current metadata
+    const devices = await prisma.device.findMany({ 
+      select: { id: true, location: true, thresholdDuty: true, ipAddress: true } 
+    });
     const results = await Promise.all(
       devices.map(async (d) => ({
         device_id: d.id,
+        // Current metadata - will be used by frontend to display latest info
+        current: {
+          location: d.location,
+          threshold: d.thresholdDuty,
+          ipAddress: d.ipAddress,
+        },
         summary: await calculateSummary(d.id, startDate, endDate),
       })),
     );
     return { success: true, data: results };
   })
 
-  // 6. Summary Mingguan
+  // 5. Summary Mingguan
   .get("/summary/mingguan", async () => {
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setDate(endDate.getDate() - 7);
-    const devices = await prisma.device.findMany({ select: { id: true } });
+    startDate.setDate(endDate.getDate() - 7); // 7 Hari terakhir
+
+    const devices = await prisma.device.findMany({ 
+      select: { id: true, location: true, thresholdDuty: true, ipAddress: true } 
+    });
     const results = await Promise.all(
       devices.map(async (d) => ({
         device_id: d.id,
+        current: {
+          location: d.location,
+          threshold: d.thresholdDuty,
+          ipAddress: d.ipAddress,
+        },
         summary: await calculateSummary(d.id, startDate, endDate),
       })),
     );
     return { success: true, range: { startDate, endDate }, data: results };
   })
 
-  // 7. Summary Bulanan
+  // 6. Summary Bulanan
   .get("/summary/bulanan", async () => {
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setMonth(endDate.getMonth() - 1);
-    const devices = await prisma.device.findMany({ select: { id: true } });
+    startDate.setMonth(endDate.getMonth() - 1); // 1 Bulan terakhir
+
+    const devices = await prisma.device.findMany({ 
+      select: { id: true, location: true, thresholdDuty: true, ipAddress: true } 
+    });
     const results = await Promise.all(
       devices.map(async (d) => ({
         device_id: d.id,
+        current: {
+          location: d.location,
+          threshold: d.thresholdDuty,
+          ipAddress: d.ipAddress,
+        },
         summary: await calculateSummary(d.id, startDate, endDate),
       })),
     );
     return { success: true, range: { startDate, endDate }, data: results };
   })
 
-  // 8. Get Operational Hours
-  .get("/operasional", async () => {
+  // 6b. Summary by Date Range (custom range from DateRangePicker)
+  .get("/summary/range", async ({ query: { start, end } }) => {
+    if (!start || !end) {
+      return { success: false, message: "Parameter start dan end diperlukan (format YYYY-MM-DD)" };
+    }
+
+    const startDate = new Date(`${start}T00:00:00.000Z`);
+    const endDate = new Date(`${end}T23:59:59.999Z`);
+
+    const devices = await prisma.device.findMany({ 
+      select: { id: true, location: true, thresholdDuty: true, ipAddress: true } 
+    });
+    const results = await Promise.all(
+      devices.map(async (d) => ({
+        device_id: d.id,
+        current: {
+          location: d.location,
+          threshold: d.thresholdDuty,
+          ipAddress: d.ipAddress,
+        },
+        summary: await calculateSummary(d.id, startDate, endDate),
+      })),
+    );
+    return { success: true, range: { startDate: start, endDate: end }, data: results };
+  })
+
+  // 7. Get Operasional
+  .get("/set-operasional", async () => {
     const config = await prisma.appConfig.findUnique({
       where: { key: "operational_hours" },
     });
-    if (!config) {
-      return {
-        success: true,
-        data: { start: "08:00", end: "17:00" }
-      };
-    }
-    return { success: true, data: config.value };
+    // Default value if not set
+    const defaultOps = { start: "08:00", end: "17:00" };
+    // config.value is already parsed as JSON by Prisma, no need to JSON.parse
+    return {
+      success: true,
+      data: config ? (config.value as { start: string; end: string }) : defaultOps,
+    };
   })
 
-  // 9. Set Operational Hours
-  .post("/operasional", async ({ body }) => {
-    const { start, end } = body as { start?: string; end?: string };
-    
-    if (!start || !end) {
-      return { success: false, message: "Parameter start dan end diperlukan" };
-    }
-
-    // Validasi format jam (HH:MM)
-    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    if (!timeRegex.test(start) || !timeRegex.test(end)) {
-      return { success: false, message: "Format jam harus HH:MM" };
-    }
-
-    const config = await prisma.appConfig.upsert({
-      where: { key: "operational_hours" },
-      update: { value: { start, end } },
-      create: { key: "operational_hours", value: { start, end } },
-    });
-
-    return { success: true, data: config.value };
-  }, {
-    body: t.Object({
-      start: t.String(),
-      end: t.String(),
-    })
-  });
-
+  // 8. Set Operasional
+  .post(
+    "/set-operasional",
+    async ({ body }) => {
+      await prisma.appConfig.upsert({
+        where: { key: "operational_hours" },
+        update: { value: body },
+        create: { key: "operational_hours", value: body },
+      });
+      return {
+        success: true,
+        message: "Jam operasional berhasil diubah",
+        data: body,
+      };
+    },
+    {
+      body: t.Object({
+        start: t.String({ description: "Format HH:mm misal 08:00" }),
+        end: t.String({ description: "Format HH:mm misal 17:00" }),
+      }),
+    },
+  );
