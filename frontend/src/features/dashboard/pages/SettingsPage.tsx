@@ -84,19 +84,19 @@ export default function SettingsPage() {
     <div className="space-y-4">
       {/* Header Card - Operational Hours */}
       <Card className="bg-white dark:bg-[var(--card)]">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+<CardHeader className="pb-4 px-4">
+          <CardTitle className="text-lg font-semibold flex items-center gap-2.5">
             <Clock className="h-5 w-5" />
             Pengaturan Jam Operasional
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
+          <div className="space-y-3 md:space-y-4">
             <p className="text-sm text-muted-foreground">
               Atur jam operasional untuk semua mesin. Availability dihitung berdasarkan rentang waktu ini.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 md:gap-3">
               {/* Start Time */}
               <div className="space-y-2">
                 <Label htmlFor="startTime">Jam Mulai</Label>

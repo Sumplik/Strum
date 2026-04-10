@@ -26,11 +26,12 @@ export default function OverviewPage() {
 
   if (devicesQ.isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-[560px] rounded-2xl" />
+      <div className="space-y-4 px-2 sm:px-4">
+        <Skeleton className="h-[60vh] sm:h-[70vh] rounded-2xl" />
       </div>
     );
   }
+
 
   if (!devicesQ.data || devicesQ.data.success === false) {
     return (

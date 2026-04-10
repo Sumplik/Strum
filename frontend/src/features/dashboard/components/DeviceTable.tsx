@@ -4,16 +4,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
-import { StatusBadge } from "./StatusBadge";
+import { StatusBadge, WarningBadge } from "./StatusBadge";
 import { cn, fmtDateTime } from "@/lib/utils";
 
-export function DeviceTable({
-  devices,
-  onSelect,
-}: {
+interface DeviceTableProps {
   devices: Device[];
   onSelect: (d: Device) => void;
-}) {
+}
+
+export function DeviceTable({ devices, onSelect }: DeviceTableProps) {
   return (
     <Card>
       <CardContent className="p-0">
@@ -40,10 +39,13 @@ export function DeviceTable({
                       {d.location ?? "-"}
                     </span>
                   </TableCell>
-                  <TableCell><StatusBadge status={d.status} /></TableCell>
+                  <TableCell className="flex items-center gap-1">
+                    <StatusBadge status={d.status} />
+                    <WarningBadge device={d} />
+                  </TableCell>
                   <TableCell className="hidden md:table-cell">{d.arus ?? "-"}</TableCell>
                   <TableCell className="hidden lg:table-cell">{d.voltase ?? "-"}</TableCell>
-<TableCell className="hidden xl:table-cell text-xs">{fmtDateTime(d.lastSeen)}</TableCell>
+                  <TableCell className="hidden xl:table-cell text-xs">{fmtDateTime(d.lastSeen)}</TableCell>
                   <TableCell className="text-right">
                     <Button 
                       variant="secondary" 
@@ -72,3 +74,4 @@ export function DeviceTable({
     </Card>
   );
 }
+

@@ -438,4 +438,3 @@ export function AppShell(props: Props) {
     </div>
   );
 }
-

@@ -134,6 +134,7 @@ export default function ReportsDailyPage() {
       <Card className="bg-white dark:bg-[var(--card)]">
         <CardHeader className="pb-2 px-3 sm:px-4 pt-3 sm:pt-4">
           <CardTitle className="text-base sm:text-lg font-semibold">Summary Harian (Availability)</CardTitle>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Laporan ketersediaan mesin harian berdasarkan data operasional</p>
         </CardHeader>
         <CardContent className="p-3 sm:p-6">
           {/* Filter Section - Horizontal Layout */}
@@ -228,4 +229,3 @@ export default function ReportsDailyPage() {
     </div>
   );
 }
-
