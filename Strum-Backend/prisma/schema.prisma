@@ -38,10 +38,10 @@ model DeviceLog {
   deviceId  String
   device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   timestamp DateTime
-  status    String   // off, idle, on_duty
   rawData   Json     // Raw json payload saat itu
   createdAt DateTime @default(now())
 
+  status    String   // off, idle, on_duty
   @@index([deviceId, timestamp]) // Penting untuk query kalkulasi durasi/summary
   @@index([timestamp])
 }

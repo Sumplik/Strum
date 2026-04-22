@@ -9,11 +9,10 @@ export function DashboardKpis() {
 
   if (statsQ.isLoading) {
     return (
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-        <Skeleton className="h-[100px] sm:h-[110px] rounded-2xl" />
-        <Skeleton className="h-[100px] sm:h-[110px] rounded-2xl" />
-        <Skeleton className="h-[100px] sm:h-[110px] rounded-2xl" />
-        <Skeleton className="h-[100px] sm:h-[110px] rounded-2xl" />
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-[100px] sm:h-[110px] rounded-2xl" />
+        ))}
       </div>
     );
   }
@@ -27,13 +26,31 @@ export function DashboardKpis() {
   }
 
   const stats = statsQ.data.data;
-  const on = stats.idle + stats.onDuty;
-  const offPct = stats.total ? Math.round((stats.off / stats.total) * 1000) / 10 : 0;
-  const onDutyPct = on ? Math.round((stats.onDuty / on) * 1000) / 10 : 0;
-  const idlePct = stats.total ? Math.round((stats.idle / stats.total) * 1000) / 10 : 0;
+  console.log("DASHBOARD KPI STATS:", stats);
+  const on = stats.on ?? stats.idle + stats.onDuty;
+  const onDutyPct =
+    typeof stats.percentOnDuty === "number"
+      ? stats.percentOnDuty
+      : on ? Math.round((stats.onDuty / on) * 1000) / 10 : 0;
 
+  const idlePct =
+    typeof stats.percentIdle === "number"
+      ? stats.percentIdle
+      : on ? Math.round((stats.idle / on) * 1000) / 10 : 0;
+
+  const offPct =
+    typeof stats.percentOff === "number"
+      ? stats.percentOff
+      : stats.total ? Math.round((stats.off / stats.total) * 1000) / 10 : 0;
   return (
-    <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5">
+      <KpiCard
+        title="Koneksi"
+        value={stats.online ?? 0}
+        accent="default"
+        hint={<KpiPill dot="amber" label="Disconnect" value={stats.disconnect ?? 0} />}
+      />
+
       <KpiCard
         title="Total Mesin"
         value={stats.total}
@@ -48,14 +65,14 @@ export function DashboardKpis() {
       />
 
       <KpiCard
-        title="On Duty (detail ON)"
+        title="On Duty"
         value={stats.onDuty}
         accent="onduty"
         hint={<KpiPill dot="green" label="Porsi ON Duty" value={`${onDutyPct}%`} tone="primary" />}
       />
 
       <KpiCard
-        title="OFF (independent)"
+        title="OFF"
         value={stats.off}
         accent="off"
         hint={<KpiPill dot="red" label="Persen OFF" value={`${offPct}%`} />}

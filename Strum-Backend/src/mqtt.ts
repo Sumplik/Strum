@@ -7,7 +7,18 @@ let io: SocketServer | { emit: (event: string, data: any) => void } | null = nul
 const messageQueue: Array<() => Promise<void>> = [];
 let isProcessing = false;
 
-let cachedStats = { total: 0, onDuty: 0, idle: 0, off: 0 };
+let cachedStats = {
+  total: 0,
+  on: 0,
+  onDuty: 0,
+  idle: 0,
+  off: 0,
+  online: 0,
+  disconnect: 0,
+  percentOnDuty: 0,
+  percentIdle: 0,
+  percentOff: 0,
+};
 let lastStatsBroadcast = 0;
 const STATS_BROADCAST_INTERVAL = 1000;
 
@@ -205,6 +216,34 @@ async function processTelemetryMessage(message: Buffer) {
     cachedStats.idle = await prisma.device.count({ where: { status: "idle" } });
     cachedStats.off = await prisma.device.count({ where: { status: "off" } });
 
+    const disconnectThreshold = new Date(Date.now() - 6 * 60 * 1000);
+
+    cachedStats.online = await prisma.device.count({
+      where: {
+        lastSeen: {
+          gt: disconnectThreshold,
+        },
+      },
+    });
+
+    cachedStats.disconnect = cachedStats.total - cachedStats.online;
+    cachedStats.on = cachedStats.onDuty + cachedStats.idle;
+
+    cachedStats.percentOnDuty =
+      cachedStats.on > 0
+        ? Math.round((cachedStats.onDuty / cachedStats.on) * 1000) / 10
+        : 0;
+
+    cachedStats.percentIdle =
+      cachedStats.on > 0
+        ? Math.round((cachedStats.idle / cachedStats.on) * 1000) / 10
+        : 0;
+
+    cachedStats.percentOff =
+      cachedStats.total > 0
+        ? Math.round((cachedStats.off / cachedStats.total) * 1000) / 10
+        : 0;
+
     const now = Date.now();
     if (now - lastStatsBroadcast >= STATS_BROADCAST_INTERVAL) {
       broadcastStatsUpdate(cachedStats);
@@ -215,3 +254,50 @@ async function processTelemetryMessage(message: Buffer) {
     console.error("❌ Error processing MQTT message:", error);
   }
 }
+setInterval(async () => {
+  try {
+    const total = await prisma.device.count();
+    const onDuty = await prisma.device.count({ where: { status: "on_duty" } });
+    const idle = await prisma.device.count({ where: { status: "idle" } });
+    const off = await prisma.device.count({ where: { status: "off" } });
+
+    const disconnectThreshold = new Date(Date.now() - 6 * 60 * 1000);
+
+    const online = await prisma.device.count({
+      where: {
+        lastSeen: {
+          gt: disconnectThreshold,
+        },
+      },
+    });
+
+    const disconnect = total - online;
+    const on = onDuty + idle;
+
+    const percentOnDuty =
+      on > 0 ? Math.round((onDuty / on) * 1000) / 10 : 0;
+
+    const percentIdle =
+      on > 0 ? Math.round((idle / on) * 1000) / 10 : 0;
+
+    const percentOff =
+      total > 0 ? Math.round((off / total) * 1000) / 10 : 0;
+
+    cachedStats = {
+      total,
+      on,
+      onDuty,
+      idle,
+      off,
+      online,
+      disconnect,
+      percentOnDuty,
+      percentIdle,
+      percentOff,
+    };
+
+    broadcastStatsUpdate(cachedStats);
+  } catch (err) {
+    console.error("❌ Err or updating stats interval:", err);
+  }
+}, 5000); // tiap 5 detik

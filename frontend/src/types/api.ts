@@ -3,9 +3,15 @@ export type ApiFail = { success: false; message?: string };
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiFail;
 
-export type Stats = {
+export interface Stats {
   total: number;
-  onDuty: number;
+  on: number;
   idle: number;
+  onDuty: number;
   off: number;
-};
+  online: number;
+  disconnect: number;
+  percentOnDuty: number;
+  percentIdle: number;
+  percentOff: number;
+}

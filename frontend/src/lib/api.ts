@@ -20,10 +20,13 @@ export interface DailySummary {
     onduty_hours: string;
     on_total_hours: string;
     off_hours: string;
-    // Operational hours breakdown
+    disconnect_hours: string;
+
     operational_on_hours: string;
     operational_off_hours: string;
     operational_idle_hours: string;
+    operational_disconnect_hours: string;
+
     total_operational_hours: string;
     availability_percent: string;
   };
@@ -95,4 +98,35 @@ export const api = {
     http<{ success: boolean; user?: { id: string; username: string }; message?: string }>(
       `${BASE_URL}/api/auth/me`,
     ),
+
+  // Download logs (CSV/JSON) for date range
+  downloadLogs: async (format: 'csv' | 'json', start: string, end: string, deviceId?: string) => {
+    const params = new URLSearchParams({ format, start, end });
+    if (deviceId) params.append('deviceId', deviceId);
+
+    const url = `${BASE_URL}/api/logs/download?${params.toString()}`;
+    
+    const response = await fetch(url, {
+      credentials: 'include', // For auth cookies
+    });
+
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const contentType = response.headers.get('content-type') || '';
+    const filename = response.headers.get('content-disposition')
+      ?.match(/filename="(.+)"/)?.[1] || `logs-${start}_to_${end}.${format}`;
+
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+  },
 };
+
