@@ -11,11 +11,21 @@ import { fmtDateTime } from "@/lib/utils";
 
 const DEVICE_WARNING_MINUTES = 5;
 
-export function StatusBadge({ status }: { status?: DeviceStatus | null }) {
+type ExtendedDeviceStatus = DeviceStatus | "disconnect";
+
+export function StatusBadge({
+  status,
+}: {
+  status?: ExtendedDeviceStatus | null;
+}) {
   const s = (status ?? "off").toString();
 
   const baseClass =
     "inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold text-white border-0 shadow-none hover:text-white focus:text-white";
+
+  if (s === "disconnect") {
+    return <span className={`${baseClass} bg-slate-500`}>Disconnect</span>;
+  }
 
   if (s === "on_duty") {
     return <span className={`${baseClass} bg-green-500`}>On Duty</span>;
@@ -38,9 +48,10 @@ export function isDeviceWarning(device: Device) {
   return minutesAgo > DEVICE_WARNING_MINUTES;
 }
 
-function getStatusLabel(status?: DeviceStatus | null) {
+function getStatusLabel(status?: ExtendedDeviceStatus | null) {
   const s = (status ?? "off").toString();
 
+  if (s === "disconnect") return "Disconnect";
   if (s === "on_duty") return "On Duty";
   if (s === "idle") return "Idle";
   return "OFF";
