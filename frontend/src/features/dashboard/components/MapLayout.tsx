@@ -1,11 +1,18 @@
 import DenahSvg from "@/assets/images/denah.svg";
-import { MAP_POSITIONS } from "../config/mapPositions";
 import * as React from "react";
 import type { Device, DeviceStatus } from "@/types/device";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  ROOM_GRID_CONFIG,
+  generateGridSlots,
+} from "../config/mapRoomGrid";
+
+const DISCONNECT_TIMEOUT_MS = 6 * 60 * 1000;
+
+type EffectiveDeviceStatus = DeviceStatus | "disconnect";
 
 interface MapLayoutProps {
   devices: Device[];
@@ -14,35 +21,71 @@ interface MapLayoutProps {
   onSelect: (device: Device) => void;
 }
 
-// 🔧 Normalize lokasi (biar CNC kebaca)
-function normalizeLocation(loc?: string | null) {
-  if (!loc) return null;
-  if (loc.toLowerCase().includes("cnc")) return "CNC";
-  return loc;
+function getLastSeen(device: any) {
+  return (
+    device.lastSeen ??
+    device.last_seen ??
+    device.lastUpdate ??
+    device.updated_at ??
+    null
+  );
 }
 
-// 🎨 Warna status
-function getStatusColor(status: DeviceStatus | null | undefined): string {
+function isDeviceOnline(lastSeen: unknown): boolean {
+  if (!lastSeen) return false;
+
+  const ts = new Date(lastSeen as string | Date).getTime();
+  if (Number.isNaN(ts)) return false;
+
+  return Date.now() - ts <= DISCONNECT_TIMEOUT_MS;
+}
+
+function getEffectiveStatus(device: Device): EffectiveDeviceStatus {
+  if (!isDeviceOnline(getLastSeen(device))) {
+    return "disconnect";
+  }
+
+  if (
+    device.status === "on_duty" ||
+    device.status === "idle" ||
+    device.status === "off"
+  ) {
+    return device.status;
+  }
+
+  return "disconnect";
+}
+
+function normalizeLocation(loc?: string | null) {
+  if (!loc) return null;
+
+  const value = loc.trim().toUpperCase();
+  const compact = value.replace(/[\s_\-\/]+/g, "");
+
+  if (compact.includes("CNC")) return "CNC";
+  if (compact.includes("W1")) return "W1";
+  if (compact.includes("W2")) return "W2";
+  if (compact.includes("W3")) return "W3";
+  if (compact.includes("W4")) return "W4";
+  if (compact.includes("W5")) return "W5";
+  if (compact.includes("G3")) return "G3";
+
+  return null;
+}
+
+function getStatusColor(status: EffectiveDeviceStatus | null | undefined): string {
   switch (status) {
     case "on_duty":
       return "bg-green-300 dark:bg-green-400";
     case "idle":
       return "bg-blue-300 dark:bg-blue-400";
     case "off":
-    default:
       return "bg-red-300 dark:bg-red-400";
+    case "disconnect":
+      return "bg-slate-300 dark:bg-slate-500 text-slate-700 dark:text-slate-100 opacity-80";
+    default:
+      return "bg-slate-300 dark:bg-slate-500";
   }
-}
-
-// 📦 Offset biar device nggak numpuk
-function getDotOffset(index: number) {
-  const col = index % 2;
-  const row = Math.floor(index / 2);
-
-  return {
-    dx: (col - 0.5) * 18, // pixel
-    dy: row * 18,
-  };
 }
 
 export function MapLayout({
@@ -51,11 +94,6 @@ export function MapLayout({
   onFilterChange,
   onSelect,
 }: MapLayoutProps): React.ReactElement {
-  const isDark =
-    typeof document !== "undefined" &&
-    document.documentElement.classList.contains("dark");
-
-  // 🎛 filter
   const toggleFilters = [
     { value: "all", label: "Semua" },
     { value: "on", label: "ON" },
@@ -66,10 +104,90 @@ export function MapLayout({
 
   const filteredDevices = React.useMemo(() => {
     if (filter === "all") return devices;
-    if (filter === "on")
-      return devices.filter((d) => d.status === "idle" || d.status === "on_duty");
-    return devices.filter((d) => d.status === filter);
+
+    return devices.filter((d) => {
+      const effectiveStatus = getEffectiveStatus(d);
+
+      if (filter === "on") {
+        return effectiveStatus === "idle" || effectiveStatus === "on_duty";
+      }
+
+      return effectiveStatus === filter;
+    });
   }, [devices, filter]);
+
+  const devicesByRoom = React.useMemo(() => {
+    const grouped: Record<string, Device[]> = {};
+
+    for (const device of filteredDevices) {
+      const room = normalizeLocation(device.location);
+      if (!room) continue;
+
+      if (!grouped[room]) {
+        grouped[room] = [];
+      }
+
+      grouped[room].push(device);
+    }
+
+    for (const room of Object.keys(grouped)) {
+      grouped[room].sort((a, b) => a.id.localeCompare(b.id));
+    }
+
+    return grouped;
+  }, [filteredDevices]);
+
+  const renderedDevices = React.useMemo(() => {
+    const result: Array<{
+      device: Device;
+      x: number;
+      y: number;
+      overflow: boolean;
+      room: string;
+      slotIndex: number;
+      effectiveStatus: EffectiveDeviceStatus;
+    }> = [];
+
+    for (const [room, roomDevices] of Object.entries(devicesByRoom)) {
+      const config = ROOM_GRID_CONFIG[room];
+
+      if (!config) continue;
+
+      const slots = generateGridSlots(config);
+
+      roomDevices.forEach((device, index) => {
+        const slot = slots[index];
+        const effectiveStatus = getEffectiveStatus(device);
+
+        if (slot) {
+          result.push({
+            device,
+            x: slot.x,
+            y: slot.y,
+            overflow: false,
+            room,
+            slotIndex: index,
+            effectiveStatus,
+          });
+        } else {
+          const lastSlot = slots[slots.length - 1];
+          if (!lastSlot) return;
+
+          result.push({
+            device,
+            x: lastSlot.x,
+            y: lastSlot.y,
+            overflow: true,
+            room,
+            slotIndex: slots.length - 1,
+            effectiveStatus,
+          });
+        }
+      });
+    }
+
+    return result;
+  }, [devicesByRoom]);
 
   return (
     <Card className="bg-white dark:bg-[var(--card)]">
@@ -106,48 +224,41 @@ export function MapLayout({
       <CardContent className="px-2 sm:px-4 pb-3 sm:pb-4">
         <div className="rounded-xl border bg-muted/30 p-2">
           <div className="relative w-full">
-            {/* DENAH */}
             <img
               src={DenahSvg}
               alt="Denah workshop"
               className="block w-full h-auto rounded-lg"
             />
 
-            {/* DOT DEVICE */}
-            {filteredDevices.map((device, index) => {
-              const locKey = normalizeLocation(device.location);
-
-              if (!locKey) return null;
-
-              const pos = MAP_POSITIONS[locKey as keyof typeof MAP_POSITIONS];
-
-              if (!pos) return null;
-
-              if (!pos) return null;
-
-              const { dx, dy } = getDotOffset(index);
-
-              return (
+            {renderedDevices.map(
+              ({ device, x, y, overflow, room, slotIndex, effectiveStatus }) => (
                 <button
                   key={device.id}
                   type="button"
-                  title={device.id}
+                  title={
+                    overflow
+                      ? `${device.id} - ${room} (melewati kapasitas slot)`
+                      : `${device.id} - ${room} - ${
+                          effectiveStatus === "disconnect"
+                            ? "Disconnect"
+                            : effectiveStatus
+                        } - slot ${slotIndex + 1}`
+                  }
                   className={cn(
                     "absolute -translate-x-1/2 -translate-y-1/2",
                     "flex items-center justify-center",
                     "rounded-md border-2 border-white shadow-md",
-                    "text-[9px] sm:text-[11px] font-semibold text-slate-900",
+                    "text-[9px] sm:text-[11px] font-semibold",
                     "min-w-[42px] sm:min-w-[56px]",
                     "h-6 sm:h-8",
                     "px-1.5 sm:px-2",
                     "hover:scale-105 transition-transform",
-                    getStatusColor(device.status)
+                    getStatusColor(effectiveStatus),
+                    overflow && "ring-2 ring-yellow-500"
                   )}
                   style={{
-                    left: `${pos.x}%`,
-                    top: `${pos.y}%`,
-                    marginLeft: `${dx}px`,
-                    marginTop: `${dy}px`,
+                    left: `${x}%`,
+                    top: `${y}%`,
                   }}
                   onClick={() => onSelect(device)}
                 >
@@ -155,8 +266,28 @@ export function MapLayout({
                     {device.id.split(" - ")[0]}
                   </span>
                 </button>
-              );
-            })}
+              )
+            )}
+
+            {/* DEBUG SLOT GRID - aktifkan sementara kalau mau cek posisi slot */}
+            {/*
+            {Object.entries(ROOM_GRID_CONFIG).flatMap(([room, config]) =>
+              generateGridSlots(config).map((slot, index) => (
+                <div
+                  key={`${room}-${index}`}
+                  className="absolute rounded-md border border-yellow-600 bg-yellow-300/40"
+                  style={{
+                    left: `${slot.x}%`,
+                    top: `${slot.y}%`,
+                    width: `${config.boxWidth ?? 30}px`,
+                    height: `${config.boxHeight ?? 18}px`,
+                    transform: "translate(-50%, -50%)",
+                  }}
+                  title={`${room} - slot ${index + 1}`}
+                />
+              ))
+            )}
+            */}
           </div>
         </div>
       </CardContent>

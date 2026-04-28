@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
-import { StatusBadge, WarningBadge } from "./StatusBadge";
+import { StatusBadge, WarningBadge, isDeviceWarning } from "./StatusBadge";
 import { cn, fmtDateTime } from "@/lib/utils";
 
 interface DeviceTableProps {
@@ -39,9 +39,14 @@ export function DeviceTable({ devices, onSelect }: DeviceTableProps) {
                       {d.location ?? "-"}
                     </span>
                   </TableCell>
-                  <TableCell className="flex items-center gap-1">
-                    <StatusBadge status={d.status} />
-                    <WarningBadge device={d} />
+                  <TableCell>
+                    <div className="flex items-center">
+                      {isDeviceWarning(d) ? (
+                        <WarningBadge device={d} />
+                      ) : (
+                        <StatusBadge status={d.status} />
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">{d.arus ?? "-"}</TableCell>
                   <TableCell className="hidden lg:table-cell">{d.voltase ?? "-"}</TableCell>

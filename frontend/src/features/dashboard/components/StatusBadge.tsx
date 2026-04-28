@@ -1,42 +1,91 @@
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import { TriangleAlert } from "lucide-react";
-import type { DeviceStatus } from "@/types/device";
-import type { Device } from "@/types/device";
+import type { DeviceStatus, Device } from "@/types/device";
+import { fmtDateTime } from "@/lib/utils";
+
+const DEVICE_WARNING_MINUTES = 5;
 
 export function StatusBadge({ status }: { status?: DeviceStatus | null }) {
   const s = (status ?? "off").toString();
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
-  // Status colors based on requirements:
-  // Idle: Blue (biru)
-  // On Duty: Green (hijau)
-  // OFF: Red (merah)
-  if (s === "on_duty") return <Badge className={isDark ? "rounded-xl bg-green-500/90 text-white font-semibold" : "rounded-xl bg-green-500 text-white font-semibold"}>On Duty</Badge>;
-  if (s === "idle") return <Badge className={isDark ? "rounded-xl bg-blue-500/90 text-white font-semibold" : "rounded-xl bg-blue-500 text-white font-semibold"}>Idle</Badge>;
-  return <Badge className={isDark ? "rounded-xl bg-red-500/90 text-white font-semibold" : "rounded-xl bg-red-500 text-white font-semibold"}>OFF</Badge>;
+  const baseClass =
+    "inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold text-white border-0 shadow-none hover:text-white focus:text-white";
+
+  if (s === "on_duty") {
+    return <span className={`${baseClass} bg-green-500`}>On Duty</span>;
+  }
+
+  if (s === "idle") {
+    return <span className={`${baseClass} bg-blue-500`}>Idle</span>;
+  }
+
+  return <span className={`${baseClass} bg-red-500`}>OFF</span>;
+}
+
+export function isDeviceWarning(device: Device) {
+  const lastSeenTime = device.lastSeen ? new Date(device.lastSeen).getTime() : 0;
+  if (!lastSeenTime) return false;
+
+  const now = Date.now();
+  const minutesAgo = Math.floor((now - lastSeenTime) / (1000 * 60));
+
+  return minutesAgo > DEVICE_WARNING_MINUTES;
+}
+
+function getStatusLabel(status?: DeviceStatus | null) {
+  const s = (status ?? "off").toString();
+
+  if (s === "on_duty") return "On Duty";
+  if (s === "idle") return "Idle";
+  return "OFF";
 }
 
 export function WarningBadge({ device }: { device: Device }) {
-  const now = Date.now();
   const lastSeenTime = device.lastSeen ? new Date(device.lastSeen).getTime() : 0;
-  const minutesAgo = Math.floor((now - lastSeenTime) / (1000 * 60));
-  const isWarning = minutesAgo > 5;
-  if (!isWarning) return null;
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  if (!lastSeenTime) return null;
+
+  const now = Date.now();
+  const diffMs = now - lastSeenTime;
+  const minutesAgo = Math.floor(diffMs / (1000 * 60));
+
+  if (minutesAgo <= DEVICE_WARNING_MINUTES) return null;
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge className={isDark ? "ml-1 rounded-xl bg-yellow-500/90 text-white font-semibold" : "ml-1 rounded-xl bg-yellow-500 text-white font-semibold"}>
-            <TriangleAlert className="h-3 w-3" />
-          </Badge>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-yellow-300 bg-yellow-400 text-white shadow-sm outline-none transition hover:bg-yellow-500"
+          >
+            <TriangleAlert className="h-4 w-4" />
+          </button>
         </TooltipTrigger>
-        <TooltipContent>
-          <p>Tidak mengirim data sejak {minutesAgo} menit lalu</p>
+
+        <TooltipContent
+          side="top"
+          align="center"
+          className="z-50 max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        >
+          <div className="space-y-1">
+            <div className="font-semibold text-yellow-600 dark:text-yellow-400">
+              Perangkat tidak mengirim data
+            </div>
+            <div>Status terakhir: {getStatusLabel(device.status)}</div>
+            <div>Last seen: {fmtDateTime(device.lastSeen)}</div>
+            <div>Terlambat: {minutesAgo} menit lalu</div>
+            <div>Arus terakhir: {device.arus ?? "-"}</div>
+            <div>Voltase terakhir: {device.voltase ?? "-"}</div>
+            <div>Lokasi: {device.location ?? "-"}</div>
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
 }
-

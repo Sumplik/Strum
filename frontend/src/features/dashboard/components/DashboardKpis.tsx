@@ -1,13 +1,34 @@
 import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert } from "@/components/ui/alert";
-import { useStats } from "@/features/dashboard/hooks/useStats";
+import { useDevices } from "@/features/dashboard/hooks/useDevices";
 import { KpiCard, KpiPill } from "@/features/dashboard/components/KpiCards";
 
-export function DashboardKpis() {
-  const statsQ = useStats();
+const DISCONNECT_TIMEOUT_MS = 6 * 60 * 1000;
 
-  if (statsQ.isLoading) {
+function getLastSeen(device: any) {
+  return (
+    device.lastSeen ??
+    device.last_seen ??
+    device.lastUpdate ??
+    device.updated_at ??
+    null
+  );
+}
+
+function isDeviceOnline(lastSeen: any) {
+  if (!lastSeen) return false;
+
+  const ts = new Date(lastSeen).getTime();
+  if (Number.isNaN(ts)) return false;
+
+  return Date.now() - ts <= DISCONNECT_TIMEOUT_MS;
+}
+
+export function DashboardKpis() {
+  const q = useDevices();
+
+  if (q.isLoading) {
     return (
       <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
@@ -17,7 +38,7 @@ export function DashboardKpis() {
     );
   }
 
-  if (statsQ.isError || !statsQ.data || statsQ.data.success === false) {
+  if (!q.data || q.data.success === false) {
     return (
       <Alert variant="destructive" className="rounded-2xl">
         KPI gagal dimuat. Cek backend / CORS.
@@ -25,55 +46,58 @@ export function DashboardKpis() {
     );
   }
 
-  const stats = statsQ.data.data;
-  console.log("DASHBOARD KPI STATS:", stats);
-  const on = stats.on ?? stats.idle + stats.onDuty;
-  const onDutyPct =
-    typeof stats.percentOnDuty === "number"
-      ? stats.percentOnDuty
-      : on ? Math.round((stats.onDuty / on) * 1000) / 10 : 0;
+  const devices = q.data.data;
 
-  const idlePct =
-    typeof stats.percentIdle === "number"
-      ? stats.percentIdle
-      : on ? Math.round((stats.idle / on) * 1000) / 10 : 0;
+  const onlineDevices = devices.filter((d: any) =>
+    isDeviceOnline(getLastSeen(d))
+  );
 
-  const offPct =
-    typeof stats.percentOff === "number"
-      ? stats.percentOff
-      : stats.total ? Math.round((stats.off / stats.total) * 1000) / 10 : 0;
+  const total = devices.length;
+  const online = onlineDevices.length;
+  const disconnect = total - online;
+
+  const idle = onlineDevices.filter((d: any) => d.status === "idle").length;
+  const onDuty = onlineDevices.filter((d: any) => d.status === "on_duty").length;
+  const off = onlineDevices.filter((d: any) => d.status === "off").length;
+
+  const onFrame = idle + onDuty;
+
+  const onDutyPct = onFrame > 0 ? Math.round((onDuty / onFrame) * 1000) / 10 : 0;
+  const idlePct = onFrame > 0 ? Math.round((idle / onFrame) * 1000) / 10 : 0;
+  const offPct = total > 0 ? Math.round((off / total) * 1000) / 10 : 0;
+
   return (
     <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5">
       <KpiCard
         title="Koneksi"
-        value={stats.online ?? 0}
+        value={online}
         accent="default"
-        hint={<KpiPill dot="amber" label="Disconnect" value={stats.disconnect ?? 0} />}
+        hint={<KpiPill dot="amber" label="Disconnect" value={disconnect} />}
       />
 
       <KpiCard
         title="Total Mesin"
-        value={stats.total}
-        hint={<KpiPill dot="blue" label="ON Frame" value={on} tone="primary" />}
+        value={total}
+        hint={<KpiPill dot="blue" label="ON Frame" value={onFrame} tone="primary" />}
       />
 
       <KpiCard
         title="Idle"
-        value={stats.idle}
+        value={idle}
         accent="onframe"
         hint={<KpiPill dot="blue" label="Porsi Idle" value={`${idlePct}%`} tone="primary" />}
       />
 
       <KpiCard
         title="On Duty"
-        value={stats.onDuty}
+        value={onDuty}
         accent="onduty"
         hint={<KpiPill dot="green" label="Porsi ON Duty" value={`${onDutyPct}%`} tone="primary" />}
       />
 
       <KpiCard
         title="OFF"
-        value={stats.off}
+        value={off}
         accent="off"
         hint={<KpiPill dot="red" label="Persen OFF" value={`${offPct}%`} />}
       />

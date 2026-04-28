@@ -9,6 +9,9 @@ const DISCONNECT_TIMEOUT_MS = 6 * 60 * 1000;
 interface DeviceLike {
   status?: string | null;
   lastSeen?: string | Date | null;
+  last_seen?: string | Date | null;
+  updated_at?: string | Date | null;
+  lastUpdate?: string | Date | null;
 }
 
 interface MachineStats {
@@ -24,6 +27,16 @@ interface MachineStats {
   offPct: number;
 }
 
+function getLastSeen(device: DeviceLike): string | Date | null {
+  return (
+    device.lastSeen ??
+    device.last_seen ??
+    device.lastUpdate ??
+    device.updated_at ??
+    null
+  );
+}
+
 function isDeviceOnline(lastSeen?: string | Date | null): boolean {
   if (!lastSeen) return false;
 
@@ -34,15 +47,19 @@ function isDeviceOnline(lastSeen?: string | Date | null): boolean {
 }
 
 function calculateStats(devices: DeviceLike[]): MachineStats {
-  const onDuty = devices.filter((d) => d.status === "on_duty").length;
-  const idle = devices.filter((d) => d.status === "idle").length;
-  const off = devices.filter((d) => d.status === "off").length;
+  const onlineDevices = devices.filter((d) =>
+    isDeviceOnline(getLastSeen(d))
+  );
 
-  const online = devices.filter((d) => isDeviceOnline(d.lastSeen)).length;
-  const disconnect = devices.length - online;
+  const disconnect = devices.length - onlineDevices.length;
+
+  const onDuty = onlineDevices.filter((d) => d.status === "on_duty").length;
+  const idle = onlineDevices.filter((d) => d.status === "idle").length;
+  const off = onlineDevices.filter((d) => d.status === "off").length;
 
   const onFrame = idle + onDuty;
   const total = devices.length;
+  const online = onlineDevices.length;
 
   const onDutyPct = onFrame > 0 ? Math.round((onDuty / onFrame) * 1000) / 10 : 0;
   const idlePct = onFrame > 0 ? Math.round((idle / onFrame) * 1000) / 10 : 0;
