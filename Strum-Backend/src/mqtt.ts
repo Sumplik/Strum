@@ -19,10 +19,14 @@ let cachedStats = {
   percentIdle: 0,
   percentOff: 0,
 };
+
 let lastStatsBroadcast = 0;
 const STATS_BROADCAST_INTERVAL = 1000;
+const DISCONNECT_TIMEOUT_MS = 6 * 60 * 1000;
 
-export function setSocketIO(socketIO: SocketServer | { emit: (event: string, data: any) => void }) {
+export function setSocketIO(
+  socketIO: SocketServer | { emit: (event: string, data: any) => void }
+) {
   io = socketIO as any;
 }
 
@@ -38,14 +42,78 @@ function broadcastStatsUpdate(data: any) {
   }
 }
 
+async function calculateCurrentStats() {
+  const disconnectThreshold = new Date(Date.now() - DISCONNECT_TIMEOUT_MS);
+
+  const onlineWhere = {
+    lastSeen: {
+      gt: disconnectThreshold,
+    },
+  };
+
+  const total = await prisma.device.count();
+
+  const online = await prisma.device.count({
+    where: onlineWhere,
+  });
+
+  const disconnect = total - online;
+
+  const onDuty = await prisma.device.count({
+    where: {
+      status: "on_duty",
+      ...onlineWhere,
+    },
+  });
+
+  const idle = await prisma.device.count({
+    where: {
+      status: "idle",
+      ...onlineWhere,
+    },
+  });
+
+  const off = await prisma.device.count({
+    where: {
+      status: "off",
+      ...onlineWhere,
+    },
+  });
+
+  const on = onDuty + idle;
+
+  const percentOnDuty =
+    on > 0 ? Math.round((onDuty / on) * 1000) / 10 : 0;
+
+  const percentIdle =
+    on > 0 ? Math.round((idle / on) * 1000) / 10 : 0;
+
+  const percentOff =
+    total > 0 ? Math.round((off / total) * 1000) / 10 : 0;
+
+  return {
+    total,
+    on,
+    onDuty,
+    idle,
+    off,
+    online,
+    disconnect,
+    percentOnDuty,
+    percentIdle,
+    percentOff,
+  };
+}
+
 async function processQueue() {
   if (isProcessing || messageQueue.length === 0) return;
-  
+
   isProcessing = true;
   console.log(`📥 Processing queue: ${messageQueue.length} messages pending`);
-  
+
   while (messageQueue.length > 0) {
     const processMessage = messageQueue[0];
+
     if (processMessage) {
       try {
         await processMessage();
@@ -53,12 +121,13 @@ async function processQueue() {
       } catch (error) {
         console.error("❌ Error processing queued MQTT message:", error);
         messageQueue.shift();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
-    await new Promise(resolve => setTimeout(resolve, 50));
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  
+
   isProcessing = false;
   console.log("✅ Queue processing complete");
 }
@@ -69,27 +138,35 @@ async function withRetry<T>(
   baseDelay: number = 100
 ): Promise<T> {
   let lastError: Error | undefined;
-  
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error as Error;
       const errorCode = (error as any)?.code;
-      if (errorCode !== 'P2028' && errorCode !== 'P1008' && !errorMessageIncludes(error, 'transaction')) {
+
+      if (
+        errorCode !== "P2028" &&
+        errorCode !== "P1008" &&
+        !errorMessageIncludes(error, "transaction")
+      ) {
         throw error;
       }
+
       const delay = baseDelay * Math.pow(2, attempt);
-      console.log(`⚠️ Retrying after ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      console.log(
+        `⚠️ Retrying after ${delay}ms (attempt ${attempt + 1}/${maxRetries})`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-  
+
   throw lastError;
 }
 
 function errorMessageIncludes(error: any, text: string): boolean {
-  const message = error?.message?.toString()?.toLowerCase() || '';
+  const message = error?.message?.toString()?.toLowerCase() || "";
   return message.includes(text.toLowerCase());
 }
 
@@ -100,7 +177,7 @@ export function initMQTT() {
       username: process.env.MQTT_USERNAME,
       password: process.env.MQTT_PASSWORD,
       clientId: `backend-server-${Math.random().toString(16).slice(3)}`,
-    },
+    }
   );
 
   mqttClient.on("connect", () => {
@@ -122,33 +199,26 @@ async function processTelemetryMessage(message: Buffer) {
     const payload = JSON.parse(message.toString());
     if (!payload.device_id || !payload.data) return;
 
-    // Handle timestamp
     let timestamp: Date;
     const tsValue = payload.connection?.ts;
-    if (typeof tsValue === 'number') {
+
+    if (typeof tsValue === "number") {
       timestamp = new Date(tsValue > 9999999999 ? tsValue : tsValue * 1000);
-    } else if (typeof tsValue === 'string') {
-      timestamp = new Date(tsValue.replace(' ', 'T'));
+    } else if (typeof tsValue === "string") {
+      timestamp = new Date(tsValue.replace(" ", "T"));
     } else {
       timestamp = new Date();
     }
 
-    // Handle status - override berdasarkan arus dan threshold
     let statusMesin: string;
     const rawStatus = payload.data.status_mesin?.toString().toLowerCase();
     const arus = payload.data?.arus ?? 0;
     const threshold = payload.threshold ?? 0;
-    
-    // Jika OFF, tetap OFF (mesin mati)
-    if (rawStatus === 'off') {
-      statusMesin = 'off';
+
+    if (rawStatus === "off") {
+      statusMesin = "off";
     } else {
-      // Hitung status berdasarkan arus dan threshold
-      if (arus >= threshold) {
-        statusMesin = 'on_duty';
-      } else {
-        statusMesin = 'idle';
-      }
+      statusMesin = arus >= threshold ? "on_duty" : "idle";
     }
 
     const ipAddress = payload.connection?.ipaddress || null;
@@ -193,7 +263,7 @@ async function processTelemetryMessage(message: Buffer) {
       await prisma.deviceLog.create({
         data: {
           deviceId: payload.device_id,
-          timestamp: timestamp,
+          timestamp,
           status: statusMesin,
           rawData: payload,
         },
@@ -211,93 +281,23 @@ async function processTelemetryMessage(message: Buffer) {
       kelembapan,
     });
 
-    cachedStats.total = await prisma.device.count();
-    cachedStats.onDuty = await prisma.device.count({ where: { status: "on_duty" } });
-    cachedStats.idle = await prisma.device.count({ where: { status: "idle" } });
-    cachedStats.off = await prisma.device.count({ where: { status: "off" } });
-
-    const disconnectThreshold = new Date(Date.now() - 6 * 60 * 1000);
-
-    cachedStats.online = await prisma.device.count({
-      where: {
-        lastSeen: {
-          gt: disconnectThreshold,
-        },
-      },
-    });
-
-    cachedStats.disconnect = cachedStats.total - cachedStats.online;
-    cachedStats.on = cachedStats.onDuty + cachedStats.idle;
-
-    cachedStats.percentOnDuty =
-      cachedStats.on > 0
-        ? Math.round((cachedStats.onDuty / cachedStats.on) * 1000) / 10
-        : 0;
-
-    cachedStats.percentIdle =
-      cachedStats.on > 0
-        ? Math.round((cachedStats.idle / cachedStats.on) * 1000) / 10
-        : 0;
-
-    cachedStats.percentOff =
-      cachedStats.total > 0
-        ? Math.round((cachedStats.off / cachedStats.total) * 1000) / 10
-        : 0;
+    cachedStats = await calculateCurrentStats();
 
     const now = Date.now();
     if (now - lastStatsBroadcast >= STATS_BROADCAST_INTERVAL) {
       broadcastStatsUpdate(cachedStats);
       lastStatsBroadcast = now;
     }
-
   } catch (error) {
     console.error("❌ Error processing MQTT message:", error);
   }
 }
+
 setInterval(async () => {
   try {
-    const total = await prisma.device.count();
-    const onDuty = await prisma.device.count({ where: { status: "on_duty" } });
-    const idle = await prisma.device.count({ where: { status: "idle" } });
-    const off = await prisma.device.count({ where: { status: "off" } });
-
-    const disconnectThreshold = new Date(Date.now() - 6 * 60 * 1000);
-
-    const online = await prisma.device.count({
-      where: {
-        lastSeen: {
-          gt: disconnectThreshold,
-        },
-      },
-    });
-
-    const disconnect = total - online;
-    const on = onDuty + idle;
-
-    const percentOnDuty =
-      on > 0 ? Math.round((onDuty / on) * 1000) / 10 : 0;
-
-    const percentIdle =
-      on > 0 ? Math.round((idle / on) * 1000) / 10 : 0;
-
-    const percentOff =
-      total > 0 ? Math.round((off / total) * 1000) / 10 : 0;
-
-    cachedStats = {
-      total,
-      on,
-      onDuty,
-      idle,
-      off,
-      online,
-      disconnect,
-      percentOnDuty,
-      percentIdle,
-      percentOff,
-    };
-
+    cachedStats = await calculateCurrentStats();
     broadcastStatsUpdate(cachedStats);
   } catch (err) {
-    console.error("❌ Err or updating stats interval:", err);
+    console.error("❌ Error updating stats interval:", err);
   }
-}, 5000); // tiap 5 detik
+}, 5000);
