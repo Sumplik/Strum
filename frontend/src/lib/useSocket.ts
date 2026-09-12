@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 const WS_URL = 
   (import.meta as any).env.VITE_WS_URL?.toString().trim() ||
-  "ws://localhost:3001/ws";
+  "ws://103.127.138.225:3001/ws";
 
 let socket: WebSocket | null = null;
 let reconnectAttempts = 0;

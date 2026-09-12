@@ -1,4 +1,3 @@
- 
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { initMQTT } from "./mqtt.js";
@@ -13,11 +12,13 @@ const app = new Elysia()
     cors({
       origin: [
         "http://localhost:5173",
-        "http://127.0.0.1:5173", 
+        "http://127.0.0.1:5173",
+        "http://103.127.138.225:5173", 
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "https://strum.ourblog.eu.org",
-        "https://backend.ourblog.eu.org",
+        "http://103.127.138.225:3000",
+        "https://utilitasmesinpusharlis.id",
+        "https://www.utilitasmesinpusharlis.id",
       ],
       credentials: true,
     }),

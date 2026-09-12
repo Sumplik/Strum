@@ -11,8 +11,8 @@ export default defineConfig({
     },
   },
   server: {
-    allowedHosts:[
-      'strum.ourblog.eu.org'
-    ] 
+    host: '0.0.0.0',     // Mengizinkan Vite menerima koneksi dari IP publik VPS
+    port: 5173,          // Menentukan port (opsional, default 5173)
+    allowedHosts: true   // Mengizinkan semua host/IP untuk mengakses (atau isi dengan IP publik VPS Anda)
   },
 });

@@ -4,7 +4,7 @@ import { http } from "@/lib/http";
 
 const BASE_URL =
   (import.meta as any).env.VITE_API_BASE_URL?.toString().trim() ||
-  "http://127.0.0.1:3001";
+  "http://103.127.138.225:3001";
 
 // Types for summary data
 export interface DailySummary {

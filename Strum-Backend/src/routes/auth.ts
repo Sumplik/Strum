@@ -32,7 +32,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         httpOnly: true,
         maxAge: 7 * 86400, // 7 hari
         path: "/",
-        sameSite: "none", // Allow cross-origin cookies (required for production)
+        sameSite: "lax", // Allow cross-origin cookies (required for production)
         secure: true, // Required when sameSite is "none" (HTTPS only)
       });
 

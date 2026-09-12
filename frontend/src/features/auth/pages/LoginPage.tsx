@@ -86,7 +86,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           <div>
             <CardTitle className="text-2xl font-bold text-white">STRUM</CardTitle>
             <CardDescription className="text-slate-400 mt-1">
-              Industrial Monitoring System
+              System Tracking Realtime Utilitas Mesin
             </CardDescription>
           </div>
         </CardHeader>
