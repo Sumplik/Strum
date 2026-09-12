@@ -1,7 +1,9 @@
 import * as React from "react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
-import { Providers } from "@/app/providers";
-import { useDashboardRoute } from "@/app/router";
+import { routeLabel, useDashboardRoute } from "@/app/navigation";
+import { api } from "@/lib/api";
 import { fmtDateTime } from "@/lib/utils";
 
 import OverviewPage from "@/features/dashboard/pages/OverviewPage";
@@ -10,9 +12,6 @@ import ReportsDailyPage from "@/features/dashboard/pages/ReportsDailyPage";
 import TrendsPage from "@/features/dashboard/pages/TrendsPage";
 import SettingsPage from "@/features/dashboard/pages/SettingsPage";
 import LoginPage from "@/features/auth/pages/LoginPage";
-import { api } from "@/lib/api";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
 function useLastUpdateTicker(ms = 3000) {
   const [txt, setTxt] = React.useState<string>("Last update: -");
@@ -27,107 +26,76 @@ function useLastUpdateTicker(ms = 3000) {
   return txt;
 }
 
+function useSessionCheck() {
+  const [status, setStatus] = React.useState<"checking" | "in" | "out">("checking");
+
+  React.useEffect(() => {
+    api
+      .verifyAuth()
+      .then((response) => setStatus(response.success ? "in" : "out"))
+      .catch(() => setStatus("out"));
+  }, []);
+
+  return { status, setStatus };
+}
+
 export default function App() {
   const { route, setRoute } = useDashboardRoute();
-  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+  const { status, setStatus } = useSessionCheck();
   const [showPageAnimation, setShowPageAnimation] = React.useState(false);
   const lastUpdateText = useLastUpdateTicker(3000);
 
-  // Check for existing session on mount
-  const [isCheckingAuth, setIsCheckingAuth] = React.useState(true);
-
-  React.useEffect(() => {
-    // Verify auth with backend using cookie session
-    const checkAuth = async () => {
-      try {
-        const response = await api.verifyAuth();
-        if (response.success) {
-          setIsLoggedIn(true);
-        }
-      } catch (e) {
-        // Not authenticated
-        setIsLoggedIn(false);
-      } finally {
-        setIsCheckingAuth(false);
-      }
-    };
-    checkAuth();
-  }, []);
-
-  const pageTitle =
-    route === "overview"
-      ? "Overview"
-      : route === "machines"
-      ? "Monitoring Mesin"
-      : route === "reports"
-      ? "Summary Harian"
-      : route === "trends"
-      ? "Trend Mingguan/Bulanan"
-      : "Pengaturan";
-
   const handleLoginSuccess = () => {
     setShowPageAnimation(true);
-    setIsLoggedIn(true);
+    setStatus("in");
   };
 
   const handleLogout = async () => {
-    // Show logout toast
     toast.info("Logout Berhasil", {
       description: "Anda telah keluar dari sistem",
       duration: 3000,
     });
-    
+
     try {
       await api.logout();
-    } catch (e) {
-      // Ignore logout errors
+    } catch {
+      // The local session is dropped regardless of whether the server call succeeds.
     }
-    setIsLoggedIn(false);
+    setStatus("out");
     setRoute("overview");
   };
 
-  // Show login page if not logged in
-  if (!isLoggedIn) {
-    // Show loading while checking auth
-    if (isCheckingAuth) {
-      return (
-        <Providers>
-          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-            <div className="flex items-center gap-2 text-slate-400">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Memuat...</span>
-            </div>
-          </div>
-        </Providers>
-      );
-    }
+  if (status === "checking") {
     return (
-      <Providers>
-        <LoginPage onLoginSuccess={handleLoginSuccess} />
-      </Providers>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="flex items-center gap-2 text-slate-400">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Memuat...</span>
+        </div>
+      </div>
     );
   }
 
+  if (status === "out") {
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
-    <Providers>
-      <div className={showPageAnimation ? "animate-page-in" : ""}>
-        <AppShell
-          route={route}
-          onRouteChange={setRoute}
-          title={pageTitle}
-          subtitle="Availability Monitoring • ESP32 → MQTT → Server → PostgreSQL"
-          mqttLabel="MQTT: Server Connected"
-          lastUpdateText={lastUpdateText}
-          onLogout={handleLogout}
-        >
-          {route === "overview" ? <OverviewPage /> : null}
-          {route === "machines" ? <MachinesPage /> : null}
-          {route === "reports" ? <ReportsDailyPage /> : null}
-          {route === "trends" ? <TrendsPage /> : null}
-          {route === "settings" ? <SettingsPage /> : null}
-        </AppShell>
-      </div>
-    </Providers>
+    <div className={showPageAnimation ? "animate-page-in" : ""}>
+      <AppShell
+        route={route}
+        onRouteChange={setRoute}
+        title={routeLabel(route)}
+        subtitle="Availability Monitoring • ESP32 → MQTT → Server → PostgreSQL"
+        lastUpdateText={lastUpdateText}
+        onLogout={handleLogout}
+      >
+        {route === "overview" && <OverviewPage />}
+        {route === "machines" && <MachinesPage />}
+        {route === "reports" && <ReportsDailyPage />}
+        {route === "trends" && <TrendsPage />}
+        {route === "settings" && <SettingsPage />}
+      </AppShell>
+    </div>
   );
 }
-

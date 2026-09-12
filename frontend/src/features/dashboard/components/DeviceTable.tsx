@@ -1,11 +1,11 @@
-import * as React from "react";
 import type { Device } from "@/types/device";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
-import { StatusBadge, WarningBadge, isDeviceWarning } from "./StatusBadge";
-import { cn, fmtDateTime } from "@/lib/utils";
+import { StatusBadge, WarningBadge } from "./StatusBadge";
+import { isDeviceWarning } from "@/features/dashboard/utils/deviceStatus";
+import { fmtDateTime } from "@/lib/utils";
 
 interface DeviceTableProps {
   devices: Device[];

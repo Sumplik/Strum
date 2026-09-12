@@ -11,6 +11,9 @@ interface LoginPageProps {
   onLoginSuccess: () => void;
 }
 
+const INPUT_CLASS =
+  "bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20";
+
 export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -18,6 +21,13 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [error, setError] = useState("");
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [showErrorAnimation, setShowErrorAnimation] = useState(false);
+
+  const showError = (message: string, description = message) => {
+    setError(message);
+    setShowErrorAnimation(true);
+    setTimeout(() => setShowErrorAnimation(false), 500);
+    toast.error("Login Gagal", { description, duration: 3000 });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,44 +37,18 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     try {
       const response = await api.login(username, password);
       if (response.success) {
-        // Show success animation
         setShowSuccessAnimation(true);
-        
-        // Show success toast
         toast.success("Login Berhasil!", {
           description: "Selamat datang di sistem monitoring STRUM",
           duration: 3000,
           icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
         });
-        
-        // Small delay for animation before calling success
-        setTimeout(() => {
-          onLoginSuccess();
-        }, 800);
+        setTimeout(onLoginSuccess, 800);
         return;
-      } else {
-        setError(response.message || "Login gagal");
-        // Trigger error animation
-        setShowErrorAnimation(true);
-        setTimeout(() => setShowErrorAnimation(false), 500);
-        
-        // Show error toast
-        toast.error("Login Gagal", {
-          description: response.message || "Username atau password salah",
-          duration: 3000,
-        });
       }
-    } catch (err: any) {
-      setError(err.message || "Terjadi kesalahan saat login");
-      // Trigger error animation
-      setShowErrorAnimation(true);
-      setTimeout(() => setShowErrorAnimation(false), 500);
-      
-      // Show error toast
-      toast.error("Login Gagal", {
-        description: err.message || "Terjadi kesalahan saat login",
-        duration: 3000,
-      });
+      showError(response.message || "Login gagal", response.message || "Username atau password salah");
+    } catch (err) {
+      showError(err instanceof Error && err.message ? err.message : "Terjadi kesalahan saat login");
     } finally {
       setIsLoading(false);
     }
@@ -72,13 +56,14 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      {/* Background pattern */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl"></div>
       </div>
 
-      <Card className={`w-full max-w-md relative z-10 border-slate-700/50 bg-slate-800/80 backdrop-blur-xl shadow-2xl ${showSuccessAnimation ? 'animate-login-success' : ''} ${showErrorAnimation ? 'animate-login-fail' : ''}`}>
+      <Card
+        className={`w-full max-w-md relative z-10 border-slate-700/50 bg-slate-800/80 backdrop-blur-xl shadow-2xl ${showSuccessAnimation ? "animate-login-success" : ""} ${showErrorAnimation ? "animate-login-fail" : ""}`}
+      >
         <CardHeader className="space-y-4 text-center pb-2">
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
             <Factory className="w-8 h-8 text-white" />
@@ -90,7 +75,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
             </CardDescription>
           </div>
         </CardHeader>
-        
+
         <CardContent className="pt-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
@@ -108,7 +93,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 placeholder="Masukkan username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20"
+                className={INPUT_CLASS}
                 required
                 disabled={isLoading}
               />
@@ -122,7 +107,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 placeholder="Masukkan password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20"
+                className={INPUT_CLASS}
                 required
                 disabled={isLoading}
               />
@@ -156,4 +141,3 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
     </div>
   );
 }
-

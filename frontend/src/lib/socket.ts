@@ -1,52 +1,32 @@
-import { io, Socket } from "socket.io-client";
+import { io, type Socket } from "socket.io-client";
 
-// Socket is disabled for demo - uncomment below and set up Socket.IO server to enable
-const SOCKET_URL = ""; // Set to your Socket.IO server URL to enable
+type Listener = (data: unknown) => void;
 
+// Realtime push is opt-in: without VITE_SOCKET_URL the hooks fall back to polling, because
+// the backend's Socket.IO server is not attached yet (see Strum-Backend/src/websocket.ts).
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL?.trim() || "";
+
+const listeners = new Map<string, Set<Listener>>();
 let socket: Socket | null = null;
 
-// Event listeners
-const listeners: Map<string, Set<(data: any) => void>> = new Map();
+function connect(): Socket | null {
+  if (!SOCKET_URL) return null;
+  if (socket) return socket;
 
-export function connectSocket() {
-  // Socket.IO disabled - using API polling instead
-  console.log("📡 Socket: Using API polling (Socket.IO disabled for demo)");
-  return null;
-}
-
-// Subscribe to events
-export function on(event: string, callback: (data: any) => void) {
-  // Ensure socket is connected
-  if (!socket?.connected) {
-    connectSocket();
-  }
-  
-  if (!listeners.has(event)) {
-    listeners.set(event, new Set());
-  }
-  listeners.get(event)?.add(callback);
-  
-  // Return unsubscribe function
-  return () => {
-    listeners.get(event)?.delete(callback);
-  };
-}
-
-// Emit event (for sending to server if needed)
-export function emit(event: string, data: any) {
-  if (socket?.connected) {
-    socket.emit(event, data);
-  }
-}
-
-// Socket instance for direct access
-export function getSocket() {
-  if (!socket?.connected) {
-    connectSocket();
-  }
+  socket = io(SOCKET_URL, { withCredentials: true });
+  socket.onAny((event: string, data: unknown) => {
+    listeners.get(event)?.forEach((listener) => listener(data));
+  });
   return socket;
 }
 
-// Initialize connection
-connectSocket();
+export function on(event: string, listener: Listener): () => void {
+  connect();
 
+  if (!listeners.has(event)) listeners.set(event, new Set());
+  listeners.get(event)?.add(listener);
+
+  return () => {
+    listeners.get(event)?.delete(listener);
+  };
+}

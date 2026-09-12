@@ -1,76 +1,41 @@
 import DenahSvg from "@/assets/images/denah.svg";
 import * as React from "react";
-import type { Device, DeviceStatus } from "@/types/device";
+import type { Device } from "@/types/device";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ROOM_GRID_CONFIG, generateGridSlots } from "../config/mapRoomGrid";
 import {
-  ROOM_GRID_CONFIG,
-  generateGridSlots,
-} from "../config/mapRoomGrid";
+  getEffectiveStatus,
+  statusLabel,
+  type EffectiveDeviceStatus,
+} from "@/features/dashboard/utils/deviceStatus";
 
-const DISCONNECT_TIMEOUT_MS = 6 * 60 * 1000;
-
-type EffectiveDeviceStatus = DeviceStatus | "disconnect";
+export type MapFilter = "all" | "on" | "idle" | "on_duty" | "off";
 
 interface MapLayoutProps {
   devices: Device[];
-  filter: "all" | "on" | "idle" | "on_duty" | "off";
-  onFilterChange: (filter: "all" | "on" | "idle" | "on_duty" | "off") => void;
+  filter: MapFilter;
+  onFilterChange: (filter: MapFilter) => void;
   onSelect: (device: Device) => void;
 }
 
-function getLastSeen(device: any) {
-  return (
-    device.lastSeen ??
-    device.last_seen ??
-    device.lastUpdate ??
-    device.updated_at ??
-    null
-  );
-}
+const ROOM_KEYS = ["CNC", "W1", "W2", "W3", "W4", "W5", "G3"] as const;
 
-function isDeviceOnline(lastSeen: unknown): boolean {
-  if (!lastSeen) return false;
-
-  const ts = new Date(lastSeen as string | Date).getTime();
-  if (Number.isNaN(ts)) return false;
-
-  return Date.now() - ts <= DISCONNECT_TIMEOUT_MS;
-}
-
-function getEffectiveStatus(device: Device): EffectiveDeviceStatus {
-  if (!isDeviceOnline(getLastSeen(device))) {
-    return "disconnect";
-  }
-
-  if (
-    device.status === "on_duty" ||
-    device.status === "idle" ||
-    device.status === "off"
-  ) {
-    return device.status;
-  }
-
-  return "disconnect";
-}
+const FILTERS: ReadonlyArray<{ value: MapFilter; label: string }> = [
+  { value: "all", label: "Semua" },
+  { value: "on", label: "ON" },
+  { value: "idle", label: "Idle" },
+  { value: "on_duty", label: "On Duty" },
+  { value: "off", label: "OFF" },
+];
 
 function normalizeLocation(loc?: string | null) {
   if (!loc) return null;
 
-  const value = loc.trim().toUpperCase();
-  const compact = value.replace(/[\s_\-\/]+/g, "");
-
-  if (compact.includes("CNC")) return "CNC";
-  if (compact.includes("W1")) return "W1";
-  if (compact.includes("W2")) return "W2";
-  if (compact.includes("W3")) return "W3";
-  if (compact.includes("W4")) return "W4";
-  if (compact.includes("W5")) return "W5";
-  if (compact.includes("G3")) return "G3";
-
-  return null;
+  const compact = loc.trim().toUpperCase().replace(/[\s_\-/]+/g, "");
+  return ROOM_KEYS.find((room) => compact.includes(room)) ?? null;
 }
 
 function getStatusColor(status: EffectiveDeviceStatus | null | undefined): string {
@@ -94,14 +59,6 @@ export function MapLayout({
   onFilterChange,
   onSelect,
 }: MapLayoutProps): React.ReactElement {
-  const toggleFilters = [
-    { value: "all", label: "Semua" },
-    { value: "on", label: "ON" },
-    { value: "idle", label: "Idle" },
-    { value: "on_duty", label: "On Duty" },
-    { value: "off", label: "OFF" },
-  ] as const;
-
   const filteredDevices = React.useMemo(() => {
     if (filter === "all") return devices;
 
@@ -201,7 +158,7 @@ export function MapLayout({
           </div>
 
           <div className="flex flex-wrap gap-1">
-            {toggleFilters.map((f) => (
+            {FILTERS.map((f) => (
               <Button
                 key={f.value}
                 variant={filter === f.value ? "default" : "outline"}
@@ -239,9 +196,7 @@ export function MapLayout({
                     overflow
                       ? `${device.id} - ${room} (melewati kapasitas slot)`
                       : `${device.id} - ${room} - ${
-                          effectiveStatus === "disconnect"
-                            ? "Disconnect"
-                            : effectiveStatus
+                          effectiveStatus === "disconnect" ? statusLabel(effectiveStatus) : effectiveStatus
                         } - slot ${slotIndex + 1}`
                   }
                   className={cn(
@@ -269,25 +224,6 @@ export function MapLayout({
               )
             )}
 
-            {/* DEBUG SLOT GRID - aktifkan sementara kalau mau cek posisi slot */}
-            {/*
-            {Object.entries(ROOM_GRID_CONFIG).flatMap(([room, config]) =>
-              generateGridSlots(config).map((slot, index) => (
-                <div
-                  key={`${room}-${index}`}
-                  className="absolute rounded-md border border-yellow-600 bg-yellow-300/40"
-                  style={{
-                    left: `${slot.x}%`,
-                    top: `${slot.y}%`,
-                    width: `${config.boxWidth ?? 30}px`,
-                    height: `${config.boxHeight ?? 18}px`,
-                    transform: "translate(-50%, -50%)",
-                  }}
-                  title={`${room} - slot ${index + 1}`}
-                />
-              ))
-            )}
-            */}
           </div>
         </div>
       </CardContent>

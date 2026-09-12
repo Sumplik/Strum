@@ -1,67 +1,82 @@
 import { Elysia, t } from "elysia";
-import jwt from "@elysiajs/jwt";
-import { prisma } from "../db.js";
+import { prisma } from "../db";
+import { config, SESSION_MAX_AGE_SECONDS } from "../config";
+import { tooManyRequests, unauthorized } from "../lib/errors";
+import { RateLimiter } from "../lib/rateLimit";
+import { sessionPlugin } from "../plugins/auth";
+
+const loginLimiter = new RateLimiter(10, 15 * 60 * 1000);
+
+const passwordSchema = t.String({ minLength: 8, maxLength: 128 });
 
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
-  .use(
-    jwt({
-      name: "jwt",
-      secret: process.env.JWT_SECRET || "SUPER_SECRET_KEY",
-    }),
-  )
+  .use(sessionPlugin)
   .post(
     "/login",
-    async ({ body, jwt, cookie: { auth_session }, set }) => {
-      // 1. Cek User
-      const user = await prisma.user.findUnique({
-        where: { username: body.username },
-      });
+    async ({ body, jwt, cookie: { auth_session }, server, request }) => {
+      const username = body.username.trim();
+      const ip = server?.requestIP(request)?.address ?? "unknown";
+      const limiterKey = `${ip}|${username.toLowerCase()}`;
 
-      // Menggunakan Bun.password untuk compare (pastikan saat create user di DB pakai Bun.password.hash)
-      if (!user || !(await Bun.password.verify(body.password, user.password))) {
-        set.status = 401;
-        return { success: false, message: "Username atau password salah" };
+      const attempt = loginLimiter.hit(limiterKey);
+      if (!attempt.allowed) {
+        throw tooManyRequests(`Terlalu banyak percobaan login, coba lagi dalam ${attempt.retryAfterSeconds} detik`);
       }
 
-      // 2. Generate Token
+      const user = await prisma.user.findUnique({ where: { username } });
+      if (!user || !(await Bun.password.verify(body.password, user.password))) {
+        throw unauthorized("Username atau password salah");
+      }
+
+      loginLimiter.reset(limiterKey);
       const token = await jwt.sign({ id: user.id, username: user.username });
 
-      // 3. Set Cookie HttpOnly
       auth_session.set({
         value: token,
         httpOnly: true,
-        maxAge: 7 * 86400, // 7 hari
+        maxAge: SESSION_MAX_AGE_SECONDS,
         path: "/",
-        sameSite: "lax", // Allow cross-origin cookies (required for production)
-        secure: true, // Required when sameSite is "none" (HTTPS only)
+        sameSite: "lax",
+        secure: config.cookieSecure,
       });
 
-      return { success: true, message: "Login berhasil" };
+      return { success: true, data: { id: user.id, username: user.username } };
     },
     {
       body: t.Object({
-        username: t.String(),
-        password: t.String(),
+        username: t.String({ minLength: 1, maxLength: 64 }),
+        password: t.String({ minLength: 1, maxLength: 128 }),
       }),
     },
   )
-  .post("/logout", async ({ cookie: { auth_session } }) => {
+  .post("/logout", ({ cookie: { auth_session } }) => {
     auth_session.remove();
     return { success: true, message: "Logout berhasil" };
   })
+  .get("/me", ({ user }) => {
+    if (!user) throw unauthorized();
+    return { success: true, data: user };
+  })
+  .put(
+    "/password",
+    async ({ user, body }) => {
+      if (!user) throw unauthorized();
 
-  // 3. Verify Auth - Check if user is logged in
-  .get(
-    "/me",
-    async ({ jwt, cookie: { auth_session }, set }) => {
-      const profile = await jwt.verify(auth_session.value as string);
-      if (!profile) {
-        set.status = 401;
-        return { success: false, message: "Not authenticated" };
+      const record = await prisma.user.findUnique({ where: { id: user.id } });
+      if (!record || !(await Bun.password.verify(body.currentPassword, record.password))) {
+        throw unauthorized("Password saat ini salah");
       }
-      return {
-        success: true,
-        user: { id: profile.id, username: profile.username },
-      };
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: await Bun.password.hash(body.newPassword) },
+      });
+      return { success: true, message: "Password berhasil diubah" };
+    },
+    {
+      body: t.Object({
+        currentPassword: t.String({ minLength: 1, maxLength: 128 }),
+        newPassword: passwordSchema,
+      }),
     },
   );

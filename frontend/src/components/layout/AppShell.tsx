@@ -2,9 +2,9 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { ChevronLeft, ChevronRight, Moon, Sun, LayoutDashboard, Wrench, BarChart3, TrendingUp, Menu, LogOut, Settings } from "lucide-react";
-import { useTheme } from "@/app/theme";
-import type { DashboardRoute } from "@/app/router";
+import { ChevronLeft, ChevronRight, Moon, Sun, Menu, LogOut } from "lucide-react";
+import { useTheme } from "@/app/useTheme";
+import { DASHBOARD_ROUTES, type DashboardRoute } from "@/app/navigation";
 import { DashboardKpis } from "@/features/dashboard/components/DashboardKpis";
 import LogoLightMode from "@/components/Logo/emblem_lightmode.png";
 import LogoDarkMode from "@/components/Logo/emblem_darkmode.png";
@@ -15,26 +15,12 @@ type Props = {
 
   title: string;
   subtitle?: string;
-
-  mqttLabel?: string;
   lastUpdateText?: string;
 
   onLogout?: () => void;
 
   children: React.ReactNode;
 };
-
-const navItems: Array<{
-  key: DashboardRoute;
-  label: string;
-  icon: React.ReactNode;
-}> = [
-  { key: "overview", label: "Overview", icon: <LayoutDashboard className="h-4 w-4" /> },
-  { key: "machines", label: "Monitoring Mesin", icon: <Wrench className="h-4 w-4" /> },
-  { key: "reports", label: "Summary Harian", icon: <BarChart3 className="h-4 w-4" /> },
-  { key: "trends", label: "Trend Mingguan/Bulanan", icon: <TrendingUp className="h-4 w-4" /> },
-  { key: "settings", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
-];
 
 function SidebarContent({
   route,
@@ -53,7 +39,6 @@ function SidebarContent({
   const cardBg = isDark ? "bg-[var(--card)]" : "bg-white";
   const cardBorder = isDark ? "border-[var(--sidebar-border)]" : "border-transparent";
   const textPrimary = isDark ? "text-[var(--sidebar-foreground)]" : "text-[#1A2B49]";
-  const textSecondary = isDark ? "text-[var(--muted-foreground)]" : "text-slate-500";
   const textMuted = isDark ? "text-[var(--muted-foreground)]" : "text-slate-400";
   const navItemBg = isDark ? "bg-[var(--sidebar-accent)]/50" : "bg-white/15";
   const navItemBorder = isDark ? "border-[var(--sidebar-border)]" : "border-white/20";
@@ -61,7 +46,6 @@ function SidebarContent({
   const navItemHoverBorder = isDark ? "hover:border-[var(--sidebar-border)]" : "hover:border-white/30";
   const iconBg = isDark ? "bg-[var(--sidebar-accent)]" : "bg-white/10";
   const iconBorder = isDark ? "border-[var(--sidebar-border)]" : "border-white/20";
-  const accentColor = isDark ? "text-blue-300" : "text-white";
   const accentBg = isDark ? "bg-blue-500/20" : "bg-white/25";
   const accentBorder = isDark ? "border-blue-500/40" : "border-white/30";
   
@@ -84,7 +68,7 @@ function SidebarContent({
 
       {/* Navigation Items */}
       <div className="flex flex-col gap-1">
-        {navItems.map((it) => {
+        {DASHBOARD_ROUTES.map((it) => {
           const active = it.key === route;
           const activeTextColor = isDark ? "text-white" : "text-[#1A2B49]";
           const inactiveTextColor = isDark ? "text-white/80" : "text-[#1A2B49]/80";
@@ -301,7 +285,7 @@ function SidebarContent({
         </span>
       </button>
 
-{/* Logout Button */}
+      {/* Logout Button */}
       <button
         className={cn(
           "flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition-all duration-200",
@@ -323,7 +307,7 @@ function SidebarContent({
 }
 
 export function AppShell(props: Props) {
-  const { theme, isTransitioning } = useTheme();
+  const { theme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   
   const {
@@ -331,7 +315,6 @@ export function AppShell(props: Props) {
     onRouteChange,
     title,
     subtitle,
-    mqttLabel,
     lastUpdateText,
     onLogout,
     children,
@@ -343,7 +326,6 @@ export function AppShell(props: Props) {
   const mainBg = isDark ? "bg-[var(--background)]" : "bg-white";
   const topbarBg = isDark ? "bg-[var(--card)]" : "bg-[#87CEEB] shadow-[0_4px_6px_-1px_rgba(59,130,246,0.1)]";
   const textPrimary = isDark ? "text-[var(--foreground)]" : "text-black";
-  const textSecondary = isDark ? "text-[var(--muted-foreground)]" : "text-slate-700";
   const textMuted = isDark ? "text-[var(--muted-foreground)]" : "text-slate-600";
 
   return (

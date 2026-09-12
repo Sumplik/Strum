@@ -1,113 +1,65 @@
-import type { ApiResponse, Stats } from "@/types/api";
+import type {
+  ApiResponse,
+  DeviceSummaryRow,
+  OperationalHours,
+  Stats,
+  SummaryRangeResponse,
+} from "@/types/api";
 import type { Device } from "@/types/device";
 import { http } from "@/lib/http";
 
-const BASE_URL =
-  (import.meta as any).env.VITE_API_BASE_URL?.toString().trim() ||
-  "http://103.127.138.225:3001";
+// TODO: drop the hardcoded production fallback once every deployment sets VITE_API_BASE_URL.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || "http://103.127.138.225:3001";
 
-// Types for summary data
-export interface DailySummary {
-  device_id: string;
-  // Current metadata - untuk menampilkan info terbaru di dashboard
-  current?: {
-    location: string | null;
-    threshold: number | null;
-    ipAddress: string | null;
-  };
-  summary: {
-    idle_hours: string;
-    onduty_hours: string;
-    on_total_hours: string;
-    off_hours: string;
-    disconnect_hours: string;
+type LogFormat = "csv" | "json";
 
-    operational_on_hours: string;
-    operational_off_hours: string;
-    operational_idle_hours: string;
-    operational_disconnect_hours: string;
-
-    total_operational_hours: string;
-    availability_percent: string;
-  };
-}
-
-export interface SummaryRangeResponse {
-  success: boolean;
-  range?: { startDate: string; endDate: string };
-  data: DailySummary[];
-  message?: string;
-}
-
-export interface DeviceWithSummary extends Device {
-  summary?: DailySummary["summary"];
-}
+type MessageResponse = { success: boolean; message?: string };
 
 export const api = {
   getStats: () => http<ApiResponse<Stats>>(`${BASE_URL}/api/stats`),
 
   getDevices: () => http<ApiResponse<Device[]>>(`${BASE_URL}/api/devices`),
 
-  // Get daily summary - format tanggal: YYYY-MM-DD
   getDailySummary: (tanggal: string) =>
-    http<ApiResponse<DailySummary[]>>(
-      `${BASE_URL}/api/summary/harian/${tanggal}`,
-    ),
+    http<ApiResponse<DeviceSummaryRow[]>>(`${BASE_URL}/api/summary/harian/${tanggal}`),
 
-  // Get weekly summary
   getWeeklySummary: () =>
-    http<ApiResponse<DailySummary[]>>(`${BASE_URL}/api/summary/mingguan`),
+    http<ApiResponse<DeviceSummaryRow[]>>(`${BASE_URL}/api/summary/mingguan`),
 
-  // Get monthly summary
   getMonthlySummary: () =>
-    http<ApiResponse<DailySummary[]>>(`${BASE_URL}/api/summary/bulanan`),
+    http<ApiResponse<DeviceSummaryRow[]>>(`${BASE_URL}/api/summary/bulanan`),
 
-// Get summary by date range
   getRangeSummary: (start: string, end: string) =>
-    http<SummaryRangeResponse>(
-      `${BASE_URL}/api/summary/range?start=${start}&end=${end}`,
-    ),
+    http<SummaryRangeResponse>(`${BASE_URL}/api/summary/range?start=${start}&end=${end}`),
 
-  // Get operational hours
   getOperasional: () =>
-    http<{ success: boolean; data: { start: string; end: string } }>(
-      `${BASE_URL}/api/set-operasional`,
-    ),
+    http<{ success: boolean; data: OperationalHours }>(`${BASE_URL}/api/set-operasional`),
 
-  // Set operational hours
   setOperasional: (start: string, end: string) =>
-    http<{ success: boolean; data: { start: string; end: string }; message?: string }>(
+    http<{ success: boolean; data: OperationalHours; message?: string }>(
       `${BASE_URL}/api/set-operasional`,
       { method: "POST", body: JSON.stringify({ start, end }) },
     ),
 
-  // Auth
   login: (username: string, password: string) =>
-    http<{ success: boolean; message?: string }>(
-      `${BASE_URL}/api/auth/login`,
-      { method: "POST", body: JSON.stringify({ username, password }) },
-    ),
+    http<MessageResponse>(`${BASE_URL}/api/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
 
-  logout: () =>
-    http<{ success: boolean; message?: string }>(
-      `${BASE_URL}/api/auth/logout`,
-      { method: "POST" },
-    ),
+  logout: () => http<MessageResponse>(`${BASE_URL}/api/auth/logout`, { method: "POST" }),
 
   verifyAuth: () =>
-    http<{ success: boolean; user?: { id: string; username: string }; message?: string }>(
+    http<MessageResponse & { user?: { id: string; username: string } }>(
       `${BASE_URL}/api/auth/me`,
     ),
 
-  // Download logs (CSV/JSON) for date range
-  downloadLogs: async (format: 'csv' | 'json', start: string, end: string, deviceId?: string) => {
+  downloadLogs: async (format: LogFormat, start: string, end: string, deviceId?: string) => {
     const params = new URLSearchParams({ format, start, end });
-    if (deviceId) params.append('deviceId', deviceId);
+    if (deviceId) params.append("deviceId", deviceId);
 
-    const url = `${BASE_URL}/api/logs/download?${params.toString()}`;
-    
-    const response = await fetch(url, {
-      credentials: 'include', // For auth cookies
+    const response = await fetch(`${BASE_URL}/api/logs/download?${params}`, {
+      credentials: "include",
     });
 
     if (!response.ok) {
@@ -115,12 +67,12 @@ export const api = {
     }
 
     const blob = await response.blob();
-    const contentType = response.headers.get('content-type') || '';
-    const filename = response.headers.get('content-disposition')
-      ?.match(/filename="(.+)"/)?.[1] || `logs-${start}_to_${end}.${format}`;
+    const filename =
+      response.headers.get("content-disposition")?.match(/filename="(.+)"/)?.[1] ||
+      `logs-${start}_to_${end}.${format}`;
 
     const downloadUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = downloadUrl;
     link.download = filename;
     document.body.appendChild(link);
@@ -129,4 +81,3 @@ export const api = {
     URL.revokeObjectURL(downloadUrl);
   },
 };
-

@@ -13,217 +13,147 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RefreshCw, Download } from "lucide-react";
-import { api, type DailySummary } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import type { Device } from "@/types/device";
+import { api } from "@/lib/api";
+import { averagePercent, cn, formatApiDate, formatHours } from "@/lib/utils";
+import { useDevices } from "@/features/dashboard/hooks/useDevices";
+import type { DeviceSummary, DeviceSummaryRow } from "@/types/api";
 import { DateRangePicker, MonthYearPicker } from "@/components/ui/date-picker";
 import { toast } from "sonner";
 
-// Helper to format hours (decimal to "Xj Ym")
-function formatHours(hoursStr: string): string {
-  const hours = parseFloat(hoursStr);
-  if (isNaN(hours) || hours === 0) return "0j 0m";
+type Period = "mingguan" | "bulanan";
 
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
-  return `${h}j ${m}m`;
-}
-
-// Helper to format date for API (YYYY-MM-DD)
-function formatApiDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+const MAX_WEEKLY_RANGE_DAYS = 30;
+const MAX_MONTHLY_RANGE_MONTHS = 12;
 
 interface SummaryRow {
   device_id: string;
   name: string;
-  summary: {
-    idle_hours: string;
-    onduty_hours: string;
-    on_total_hours: string;
-    off_hours: string;
-    availability_percent: string;
-    operational_off_hours: string;
-  };
+  summary: DeviceSummary;
+}
+
+function daysAgo(days: number): Date {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date;
+}
+
+function monthsAgo(months: number): Date {
+  const date = new Date();
+  date.setMonth(date.getMonth() - months);
+  return date;
+}
+
+const firstDayOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
+const lastDayOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+
+function availabilityColor(value: number): string {
+  if (value >= 90) return "text-green-600";
+  if (value >= 70) return "text-yellow-600";
+  return "text-red-600";
+}
+
+function dedupeByDevice(rows: DeviceSummaryRow[]): DeviceSummaryRow[] {
+  const seen = new Map<string, DeviceSummaryRow>();
+  for (const row of rows) {
+    const key = row.device_id.trim().toLowerCase();
+    if (!seen.has(key)) seen.set(key, row);
+  }
+  return Array.from(seen.values());
 }
 
 export default function TrendsPage() {
-  // Default values
-  const today = new Date();
+  const [period, setPeriod] = useState<Period>("bulanan");
 
-  // Default for weekly: last 7 days
-  const defaultWeekStart = new Date();
-  defaultWeekStart.setDate(today.getDate() - 7);
+  const [weekRange, setWeekRange] = useState<{ from?: Date; to?: Date }>(() => ({
+    from: daysAgo(7),
+    to: new Date(),
+  }));
+  const [monthRange, setMonthRange] = useState<{ from?: Date; to?: Date }>(() => ({
+    from: monthsAgo(3),
+    to: new Date(),
+  }));
 
-  // Default for monthly: last 3 months
-  const defaultMonthStart = new Date();
-  defaultMonthStart.setMonth(today.getMonth() - 3);
+  const [range, setRange] = useState(() => ({
+    start: formatApiDate(firstDayOfMonth(monthsAgo(3))),
+    end: formatApiDate(new Date()),
+  }));
 
-  const [tabValue, setTabValue] = useState("bulanan");
-
-  // State for weekly (date range)
-  const [selectedStartDate, setSelectedStartDate] = useState<Date | undefined>(defaultWeekStart);
-  const [selectedEndDate, setSelectedEndDate] = useState<Date | undefined>(today);
-  const [startDate, setStartDate] = useState(() => formatApiDate(defaultWeekStart));
-  const [endDate, setEndDate] = useState(() => formatApiDate(today));
-
-  // State for monthly (month range)
-  const [selectedFromMonth, setSelectedFromMonth] = useState<Date | undefined>(defaultMonthStart);
-  const [selectedToMonth, setSelectedToMonth] = useState<Date | undefined>(today);
-
-  // Handle weekly date range selection
   const handleDateRangeSelect = (from: Date | undefined, to: Date | undefined) => {
     if (!from || !to) return;
 
-    // Validate: max 30 days for weekly
-    const diffTime = Math.abs(to.getTime() - from.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays > 30) {
-      alert("Maksimal range untuk Mingguan adalah 30 hari");
+    const diffDays = Math.ceil(Math.abs(to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays > MAX_WEEKLY_RANGE_DAYS) {
+      toast.error(`Maksimal range untuk Mingguan adalah ${MAX_WEEKLY_RANGE_DAYS} hari`);
       return;
     }
-
-    // Validate: to >= from
     if (to < from) {
-      alert("Tanggal akhir harus >= tanggal awal");
+      toast.error("Tanggal akhir harus >= tanggal awal");
       return;
     }
 
-    setSelectedStartDate(from);
-    setSelectedEndDate(to);
-    setStartDate(formatApiDate(from));
-    setEndDate(formatApiDate(to));
+    setWeekRange({ from, to });
+    setRange({ start: formatApiDate(from), end: formatApiDate(to) });
   };
 
-  // Handle monthly month range selection
-  const handleMonthRangeSelect = (fromMonth: Date | undefined, toMonth: Date | undefined) => {
-    if (!fromMonth || !toMonth) return;
+  const handleMonthRangeSelect = (from: Date | undefined, to: Date | undefined) => {
+    if (!from || !to) return;
 
-    // Validate: max 12 months
-    const diffMonths =
-      (toMonth.getFullYear() - fromMonth.getFullYear()) * 12 +
-      (toMonth.getMonth() - fromMonth.getMonth());
-
-    if (diffMonths > 11) {
-      alert("Maksimal range untuk Bulanan adalah 12 bulan");
+    const diffMonths = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+    if (diffMonths >= MAX_MONTHLY_RANGE_MONTHS) {
+      toast.error(`Maksimal range untuk Bulanan adalah ${MAX_MONTHLY_RANGE_MONTHS} bulan`);
+      return;
+    }
+    if (to < from) {
+      toast.error("Bulan akhir harus >= bulan awal");
       return;
     }
 
-    // Validate: to >= from
-    if (toMonth < fromMonth) {
-      alert("Bulan akhir harus >= bulan awal");
-      return;
-    }
-
-    setSelectedFromMonth(fromMonth);
-    setSelectedToMonth(toMonth);
-
-    // Convert to date range for API (first day of fromMonth to last day of toMonth)
-    const fromDate = new Date(fromMonth.getFullYear(), fromMonth.getMonth(), 1);
-    const toDate = new Date(toMonth.getFullYear(), toMonth.getMonth() + 1, 0);
-
-    setStartDate(formatApiDate(fromDate));
-    setEndDate(formatApiDate(toDate));
+    setMonthRange({ from, to });
+    setRange({ start: formatApiDate(firstDayOfMonth(from)), end: formatApiDate(lastDayOfMonth(to)) });
   };
 
-  // Fetch devices list
-  const devicesQuery = useQuery({
-    queryKey: ["devices"],
-    queryFn: () => api.getDevices(),
-  });
+  const handlePeriodChange = (value: string) => {
+    const next = value as Period;
+    setPeriod(next);
 
-  // Fetch summary data from API based on date range
+    const today = new Date();
+    if (next === "mingguan") {
+      const weekAgo = daysAgo(7);
+      setWeekRange({ from: weekAgo, to: today });
+      setRange({ start: formatApiDate(weekAgo), end: formatApiDate(today) });
+    } else {
+      const monthAgo = monthsAgo(3);
+      setMonthRange({ from: monthAgo, to: today });
+      setRange({ start: formatApiDate(firstDayOfMonth(monthAgo)), end: formatApiDate(today) });
+    }
+  };
+
+  const devicesQuery = useDevices();
   const summaryQuery = useQuery({
-    queryKey: ["summary", tabValue, startDate, endDate],
-    queryFn: async () => {
-      return api.getRangeSummary(startDate, endDate);
-    },
+    queryKey: ["summary", period, range.start, range.end],
+    queryFn: () => api.getRangeSummary(range.start, range.end),
   });
 
-  // Combine device info with summary data from API
-  const summaryData: SummaryRow[] = (() => {
-    if (!summaryQuery.data?.success || !devicesQuery.data?.success) {
-      return [];
-    }
-
-    const devices = devicesQuery.data.data;
-    const summaries = summaryQuery.data.data;
-
-    // Deduplicate by device_id using Map - keep first occurrence only
-    const uniqueMap = new Map<string, DailySummary>();
-    summaries.forEach((item: DailySummary) => {
-      const key = item.device_id.trim().toLowerCase();
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, item);
-      }
-    });
-
-    return Array.from(uniqueMap.values()).map((item: DailySummary) => {
-      const device = devices.find((d: Device) => d.id === item.device_id);
-      return {
-        device_id: item.device_id,
-        name: device?.location || item.current?.location || "-",
-        summary: item.summary,
-      };
-    });
-  })();
+  const devices = devicesQuery.data?.success ? devicesQuery.data.data : [];
+  const rows: SummaryRow[] =
+    summaryQuery.data?.success && devicesQuery.data?.success
+      ? dedupeByDevice(summaryQuery.data.data).map((item) => ({
+          device_id: item.device_id,
+          name: devices.find((d) => d.id === item.device_id)?.location || item.current?.location || "-",
+          summary: item.summary,
+        }))
+      : [];
 
   const isLoading = devicesQuery.isLoading || summaryQuery.isLoading;
   const isRefreshing = summaryQuery.isFetching;
-
-  // Calculate average availability
-  const avgAvailability =
-    summaryData.length > 0
-      ? (
-          summaryData.reduce(
-            (acc, d) => acc + parseFloat(d.summary.availability_percent),
-            0
-          ) / summaryData.length
-        ).toFixed(1)
-      : "0.0";
-
-  const handleRefresh = () => {
-    summaryQuery.refetch();
-  };
+  const avgAvailability = averagePercent(rows.map((r) => r.summary.availability_percent));
 
   const handleDownloadJson = async () => {
     try {
-      await api.downloadLogs("json", startDate, endDate);
+      await api.downloadLogs("json", range.start, range.end);
       toast.success("Download JSON berhasil");
     } catch {
       toast.error("Download gagal");
-    }
-  };
-
-  const handleTabChange = (value: string) => {
-    setTabValue(value);
-    const today = new Date();
-
-    if (value === "mingguan") {
-      // Last 7 days
-      const weekAgo = new Date();
-      weekAgo.setDate(today.getDate() - 7);
-
-      setStartDate(formatApiDate(weekAgo));
-      setEndDate(formatApiDate(today));
-      setSelectedStartDate(weekAgo);
-      setSelectedEndDate(today);
-    } else if (value === "bulanan") {
-      // Last 3 months
-      const monthAgo = new Date();
-      monthAgo.setMonth(today.getMonth() - 3);
-
-      // Convert to date range for API (first day of monthAgo to today)
-      const fromDate = new Date(monthAgo.getFullYear(), monthAgo.getMonth(), 1);
-
-      setStartDate(formatApiDate(fromDate));
-      setEndDate(formatApiDate(today));
-      setSelectedFromMonth(monthAgo);
-      setSelectedToMonth(today);
     }
   };
 
@@ -238,41 +168,34 @@ export default function TrendsPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header Section */}
       <Card className="bg-white dark:bg-[var(--card)]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-semibold">
-            Trend Mingguan / Bulanan
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Trend availability dari event log.
-          </p>
+          <CardTitle className="text-lg font-semibold">Trend Mingguan / Bulanan</CardTitle>
+          <p className="text-sm text-muted-foreground">Trend availability dari event log.</p>
         </CardHeader>
 
         <CardContent className="p-4 sm:p-6">
-          {/* Filter Section - Combined Tabs + Date Range + Actions */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            {/* Left: Tabs + Date Range Picker */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Tabs value={tabValue} onValueChange={handleTabChange}>
+              <Tabs value={period} onValueChange={handlePeriodChange}>
                 <TabsList>
                   <TabsTrigger value="mingguan">Mingguan</TabsTrigger>
                   <TabsTrigger value="bulanan">Bulanan</TabsTrigger>
                 </TabsList>
               </Tabs>
 
-              {tabValue === "mingguan" ? (
+              {period === "mingguan" ? (
                 <DateRangePicker
-                  from={selectedStartDate}
-                  to={selectedEndDate}
+                  from={weekRange.from}
+                  to={weekRange.to}
                   onSelect={handleDateRangeSelect}
                   fromPlaceholder="Dari"
                   toPlaceholder="Sampai"
                 />
               ) : (
                 <MonthYearPicker
-                  fromMonth={selectedFromMonth}
-                  toMonth={selectedToMonth}
+                  fromMonth={monthRange.from}
+                  toMonth={monthRange.to}
                   onSelect={handleMonthRangeSelect}
                   fromPlaceholder="Dari bulan"
                   toPlaceholder="Sampai bulan"
@@ -280,7 +203,6 @@ export default function TrendsPage() {
               )}
             </div>
 
-            {/* Right: Avg Availability + Buttons */}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5">
                 <span className="text-sm text-muted-foreground">Avg:</span>
@@ -290,7 +212,7 @@ export default function TrendsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleRefresh}
+                onClick={() => summaryQuery.refetch()}
                 disabled={isRefreshing}
                 className="h-9 w-9 sm:w-auto"
               >
@@ -298,11 +220,7 @@ export default function TrendsPage() {
                 <span className="ml-2 hidden sm:inline">Refresh</span>
               </Button>
 
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleDownloadJson}
-              >
+              <Button size="sm" variant="ghost" onClick={handleDownloadJson}>
                 <Download className="mr-1 h-4 w-4" />
                 JSON
               </Button>
@@ -311,7 +229,6 @@ export default function TrendsPage() {
         </CardContent>
       </Card>
 
-      {/* Table Section */}
       <Card className="bg-white dark:bg-[var(--card)]">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -326,52 +243,32 @@ export default function TrendsPage() {
               </TableHeader>
 
               <TableBody>
-                {summaryData.map((item) => {
-                  const availability = parseFloat(item.summary.availability_percent);
+                {rows.map((item) => (
+                  <TableRow key={item.device_id}>
+                    <TableCell className="font-medium">
+                      <span className="font-bold">{item.device_id}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{item.name}</span>
+                    </TableCell>
+                    <TableCell className="text-right">{formatHours(item.summary.on_total_hours)}</TableCell>
+                    <TableCell className="text-right">
+                      {formatHours(item.summary.operational_off_hours)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span
+                        className={cn(
+                          "font-bold",
+                          availabilityColor(parseFloat(item.summary.availability_percent)),
+                        )}
+                      >
+                        {item.summary.availability_percent}%
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
 
-                  return (
-                    <TableRow key={item.device_id}>
-                      <TableCell className="font-medium">
-                        <div>
-                          <span className="font-bold">{item.device_id}</span>
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {item.name}
-                          </span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        {formatHours(item.summary.on_total_hours)}
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        {formatHours(item.summary.operational_off_hours)}
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <span
-                          className={cn(
-                            "font-bold",
-                            availability >= 90
-                              ? "text-green-600"
-                              : availability >= 70
-                              ? "text-yellow-600"
-                              : "text-red-600"
-                          )}
-                        >
-                          {item.summary.availability_percent}%
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-
-                {summaryData.length === 0 && (
+                {rows.length === 0 && (
                   <TableRow>
-                    <TableCell
-                      colSpan={4}
-                      className="h-24 text-center text-muted-foreground"
-                    >
+                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
                       No data available for this period
                     </TableCell>
                   </TableRow>

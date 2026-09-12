@@ -5,14 +5,14 @@ import { toast } from "sonner";
 
 import { useDevices } from "@/features/dashboard/hooks/useDevices";
 
-import { MapLayout } from "@/features/dashboard/components/MapLayout";
+import { MapLayout, type MapFilter } from "@/features/dashboard/components/MapLayout";
 import DeviceDetailDialog from "@/features/dashboard/components/DeviceDetailDialog";
 import type { Device } from "@/types/device";
 
 export default function OverviewPage() {
   const devicesQ = useDevices();
 
-  const [filter, setFilter] = React.useState<"all" | "on" | "idle" | "on_duty" | "off">("all");
+  const [filter, setFilter] = React.useState<MapFilter>("all");
   const [selected, setSelected] = React.useState<Device | null>(null);
   const [open, setOpen] = React.useState(false);
 
@@ -31,7 +31,6 @@ export default function OverviewPage() {
       </div>
     );
   }
-
 
   if (!devicesQ.data || devicesQ.data.success === false) {
     return (

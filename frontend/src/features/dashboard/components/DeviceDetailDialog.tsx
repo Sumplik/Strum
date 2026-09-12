@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { Device, DeviceStatus } from "@/types/device";
+import type { Device } from "@/types/device";
 import {
   Dialog,
   DialogContent,
@@ -10,45 +10,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "./StatusBadge";
 import { cn, fmtDateTime } from "@/lib/utils";
-
-const DISCONNECT_TIMEOUT_MS = 6 * 60 * 1000;
-
-type EffectiveDeviceStatus = DeviceStatus | "disconnect";
-
-function getLastSeen(device: any) {
-  return (
-    device.lastSeen ??
-    device.last_seen ??
-    device.lastUpdate ??
-    device.updated_at ??
-    null
-  );
-}
-
-function isDeviceOnline(lastSeen: unknown): boolean {
-  if (!lastSeen) return false;
-
-  const ts = new Date(lastSeen as string | Date).getTime();
-  if (Number.isNaN(ts)) return false;
-
-  return Date.now() - ts <= DISCONNECT_TIMEOUT_MS;
-}
-
-function getEffectiveStatus(device: Device): EffectiveDeviceStatus {
-  if (!isDeviceOnline(getLastSeen(device))) {
-    return "disconnect";
-  }
-
-  if (
-    device.status === "on_duty" ||
-    device.status === "idle" ||
-    device.status === "off"
-  ) {
-    return device.status;
-  }
-
-  return "disconnect";
-}
+import { getEffectiveStatus } from "@/features/dashboard/utils/deviceStatus";
 
 function Field({
   label,
@@ -62,12 +24,8 @@ function Field({
   return (
     <Card className={cn("dark:bg-[var(--card)]", className)}>
       <CardContent className="p-3 sm:p-4">
-        <div className="text-[10px] sm:text-xs text-muted-foreground">
-          {label}
-        </div>
-        <div className="mt-0.5 sm:mt-1 text-sm sm:text-base font-bold">
-          {value}
-        </div>
+        <div className="text-[10px] sm:text-xs text-muted-foreground">{label}</div>
+        <div className="mt-0.5 sm:mt-1 text-sm sm:text-base font-bold">{value}</div>
       </CardContent>
     </Card>
   );
@@ -82,8 +40,6 @@ export default function DeviceDetailDialog({
   onOpenChange: (v: boolean) => void;
   device: Device | null;
 }) {
-  const effectiveStatus = device ? getEffectiveStatus(device) : "disconnect";
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -103,13 +59,10 @@ export default function DeviceDetailDialog({
             <Field label="ID Mesin" value={device.id} />
             <Field label="Lokasi" value={device.location ?? "-"} />
             <Field label="IP Address" value={device.ipAddress ?? "-"} />
-            <Field
-              label="Status"
-              value={<StatusBadge status={effectiveStatus as DeviceStatus} />}
-            />
+            <Field label="Status" value={<StatusBadge status={getEffectiveStatus(device)} />} />
             <Field
               label="Last Seen"
-              value={fmtDateTime(getLastSeen(device))}
+              value={fmtDateTime(device.lastSeen)}
               className="col-span-2 sm:col-span-1"
             />
 

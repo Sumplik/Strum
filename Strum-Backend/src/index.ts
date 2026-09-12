@@ -1,32 +1,44 @@
-import { Elysia } from "elysia";
-import { cors } from "@elysiajs/cors";
-import { initMQTT } from "./mqtt.js";
-import { authRoutes } from "./routes/auth.js";
-import { apiRoutes } from "./routes/api.js";
+import { createApp } from "./app";
+import { config } from "./config";
+import { prisma } from "./db";
+import { isValidTimeZone } from "./lib/time";
+import { startMqtt, stopMqtt } from "./mqtt";
+import { refreshBranchCache } from "./services/branches";
 
-// Jalankan background service
-initMQTT();
+if (!isValidTimeZone(config.timezone)) {
+  console.error(`❌ TIMEZONE tidak valid: ${config.timezone}`);
+  process.exit(1);
+}
 
-const app = new Elysia()
-  .use(
-    cors({
-      origin: [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://103.127.138.225:5173", 
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://103.127.138.225:3000",
-        "https://utilitasmesinpusharlis.id",
-        "https://www.utilitasmesinpusharlis.id",
-      ],
-      credentials: true,
-    }),
-  )
-  .use(authRoutes) // Endpoint Public (Login/Logout)
-  .use(apiRoutes) // Endpoint Protected
-  .listen(3001);
+if (config.isJwtSecretFallback) {
+  if (config.isProduction) {
+    console.error("❌ JWT_SECRET wajib diisi saat NODE_ENV=production");
+    process.exit(1);
+  }
+  console.warn("⚠️ JWT_SECRET belum diisi, memakai secret default yang tidak aman");
+}
 
-console.log(
-  `🦊 Backend is running at ${app.server?.hostname}:${app.server?.port}`,
-);
+try {
+  const branches = await refreshBranchCache();
+  console.log(`🏢 ${branches.size} cabang terdaftar: ${[...branches].join(", ") || "-"}`);
+  if (!branches.has(config.mqtt.legacyBranchId)) {
+    console.warn(`⚠️ Cabang legacy ${config.mqtt.legacyBranchId} belum terdaftar; pesan dari topic lama akan ditolak sampai cabang itu dibuat`);
+  }
+} catch (error) {
+  console.error("❌ Tidak bisa terhubung ke database:", error);
+  process.exit(1);
+}
+
+const app = createApp().listen(config.port);
+startMqtt();
+
+console.log(`🦊 Backend berjalan di ${app.server?.hostname}:${app.server?.port} (zona waktu ${config.timezone})`);
+
+async function shutdown(signal: string) {
+  console.log(`\n👋 ${signal} diterima, mematikan server...`);
+  await Promise.allSettled([stopMqtt(), app.stop(), prisma.$disconnect()]);
+  process.exit(0);
+}
+
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));

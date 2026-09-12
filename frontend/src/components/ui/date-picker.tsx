@@ -140,39 +140,46 @@ export function DatePicker({
   );
 }
 
-export interface DateRangePickerProps {
+interface RangePickerProps {
   from: Date | undefined;
   to: Date | undefined;
   onSelect: (from: Date | undefined, to: Date | undefined) => void;
+  displayFormat: string;
+  fromPlaceholder: string;
+  toPlaceholder: string;
   className?: string;
-  fromPlaceholder?: string;
-  toPlaceholder?: string;
   disabled?: boolean;
 }
 
-export function DateRangePicker({
+function formatRange(from: Date | undefined, to: Date | undefined, displayFormat: string, empty: string) {
+  if (from && to) return `${format(from, displayFormat)} - ${format(to, displayFormat)}`;
+  if (from) return format(from, displayFormat);
+  if (to) return format(to, displayFormat);
+  return empty;
+}
+
+// Draft dates live only while the popover is open; they are re-seeded from props on open.
+function RangePicker({
   from,
   to,
   onSelect,
+  displayFormat,
+  fromPlaceholder,
+  toPlaceholder,
   className,
-  fromPlaceholder = "Dari",
-  toPlaceholder = "Sampai",
   disabled = false,
-}: DateRangePickerProps) {
+}: RangePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [fromDate, setFromDate] = React.useState<Date>(() => from || new Date());
+  const [toDate, setToDate] = React.useState<Date>(() => to || new Date());
 
-  // Internal state for the two pickers
-  const [fromDate, setFromDate] = React.useState<Date>(from || new Date());
-  const [toDate, setToDate] = React.useState<Date>(to || new Date());
-
-  // Update internal state when props change
-  React.useEffect(() => {
-    if (from) setFromDate(from);
-  }, [from]);
-
-  React.useEffect(() => {
-    if (to) setToDate(to);
-  }, [to]);
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      setFromDate(from || new Date());
+      setToDate(to || new Date());
+    }
+    setIsOpen(open);
+  };
 
   const handleApply = () => {
     onSelect(fromDate, toDate);
@@ -180,7 +187,7 @@ export function DateRangePicker({
   };
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
+    <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant={"outline"}
@@ -192,12 +199,11 @@ export function DateRangePicker({
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-5 w-5" />
-          {from ? (to ? `${format(from, "dd/MM/yyyy")} - ${format(to, "dd/MM/yyyy")}` : format(from, "dd/MM/yyyy")) : (to ? format(to, "dd/MM/yyyy") : `${fromPlaceholder} - ${toPlaceholder}`)}
+          {formatRange(from, to, displayFormat, `${fromPlaceholder} - ${toPlaceholder}`)}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-4 bg-white dark:bg-[var(--popover)]" align="start" sideOffset={8}>
         <div className="flex flex-col gap-4">
-          {/* Label dan 2 DatePicker terpisah */}
           <div className="flex items-center gap-3">
             <div className="flex flex-col gap-1">
               <span className="text-sm text-muted-foreground font-medium">{fromPlaceholder}</span>
@@ -231,7 +237,31 @@ export function DateRangePicker({
   );
 }
 
-// MonthYearPicker - For selecting month and year range (for monthly trends)
+export interface DateRangePickerProps {
+  from: Date | undefined;
+  to: Date | undefined;
+  onSelect: (from: Date | undefined, to: Date | undefined) => void;
+  className?: string;
+  fromPlaceholder?: string;
+  toPlaceholder?: string;
+  disabled?: boolean;
+}
+
+export function DateRangePicker({
+  fromPlaceholder = "Dari",
+  toPlaceholder = "Sampai",
+  ...props
+}: DateRangePickerProps) {
+  return (
+    <RangePicker
+      {...props}
+      displayFormat="dd/MM/yyyy"
+      fromPlaceholder={fromPlaceholder}
+      toPlaceholder={toPlaceholder}
+    />
+  );
+}
+
 export interface MonthYearPickerProps {
   fromMonth: Date | undefined;
   toMonth: Date | undefined;
@@ -245,80 +275,18 @@ export interface MonthYearPickerProps {
 export function MonthYearPicker({
   fromMonth,
   toMonth,
-  onSelect,
-  className,
   fromPlaceholder = "Dari bulan",
   toPlaceholder = "Sampai bulan",
-  disabled = false,
+  ...props
 }: MonthYearPickerProps) {
-  const [isOpen, setIsOpen] = React.useState(false);
-
-  // Internal state for the two pickers
-  const [fromDate, setFromDate] = React.useState<Date>(fromMonth || new Date());
-  const [toDate, setToDate] = React.useState<Date>(toMonth || new Date());
-
-  // Update internal state when props change
-  React.useEffect(() => {
-    if (fromMonth) setFromDate(fromMonth);
-  }, [fromMonth]);
-
-  React.useEffect(() => {
-    if (toMonth) setToDate(toMonth);
-  }, [toMonth]);
-
-  const handleApply = () => {
-    onSelect(fromDate, toDate);
-    setIsOpen(false);
-  };
-
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant={"outline"}
-          className={cn(
-            "w-[260px] sm:w-[300px] justify-start text-left font-normal text-base",
-            (!fromMonth || !toMonth) && "text-muted-foreground",
-            className
-          )}
-          disabled={disabled}
-        >
-          <CalendarIcon className="mr-2 h-5 w-5" />
-          {fromMonth ? (toMonth ? `${format(fromMonth, "MMM yyyy")} - ${format(toMonth, "MMM yyyy")}` : format(fromMonth, "MMM yyyy")) : (toMonth ? format(toMonth, "MMM yyyy") : `${fromPlaceholder} - ${toPlaceholder}`)}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-4 bg-white dark:bg-[var(--popover)]" align="start" sideOffset={8}>
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-muted-foreground font-medium">{fromPlaceholder}</span>
-              <DatePicker
-                date={fromDate}
-                onSelect={(date) => date && setFromDate(date)}
-                className="w-[160px]"
-              />
-            </div>
-            <span className="text-muted-foreground mt-6">-</span>
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-muted-foreground font-medium">{toPlaceholder}</span>
-              <DatePicker
-                date={toDate}
-                onSelect={(date) => date && setToDate(date)}
-                className="w-[160px]"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsOpen(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" onClick={handleApply}>
-              Apply
-            </Button>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <RangePicker
+      {...props}
+      from={fromMonth}
+      to={toMonth}
+      displayFormat="MMM yyyy"
+      fromPlaceholder={fromPlaceholder}
+      toPlaceholder={toPlaceholder}
+    />
   );
 }
-

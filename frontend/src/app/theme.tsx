@@ -1,17 +1,7 @@
 import * as React from "react";
 import { Sun, Moon } from "lucide-react";
 
-type Theme = "light" | "dark";
-
-type ThemeContextValue = {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-  toggleTheme: () => void;
-  isTransitioning: boolean;
-  transitionType: "toLight" | "toDark" | null;
-};
-
-const ThemeContext = React.createContext<ThemeContextValue | null>(null);
+import { ThemeContext, type Theme } from "./useTheme";
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement; // <html>
@@ -23,7 +13,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<Theme>(() => {
     const saved = localStorage.getItem("theme") as Theme | null;
     if (saved === "light" || saved === "dark") return saved;
-    // default: dark biar sesuai dashboard monitoring
     return "dark";
   });
   
@@ -97,10 +86,4 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       {children}
     </ThemeContext.Provider>
   );
-}
-
-export function useTheme() {
-  const ctx = React.useContext(ThemeContext);
-  if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
-  return ctx;
 }

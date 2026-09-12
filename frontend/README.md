@@ -1,73 +1,45 @@
-# React + TypeScript + Vite
+# Strum Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Dashboard monitoring mesin untuk **Strum** (React 19 + Vite 7 + TypeScript, TanStack Query, shadcn/radix-ui, Tailwind 4). Mengambil data dari `Strum-Backend` lewat REST API dan menyegarkannya setiap 5 detik.
 
-Currently, two official plugins are available:
+## Menjalankan
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+cp .env.example .env      # isi VITE_API_BASE_URL, default http://127.0.0.1:3001
+npm run dev               # http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+| Script | Fungsi |
+|---|---|
+| `npm run dev` | Dev server Vite dengan HMR |
+| `npm run build` | Type-check (`tsc -b`) lalu build produksi ke `dist/` |
+| `npm run preview` | Menyajikan hasil build |
+| `npm run lint` | ESLint (`eslint.config.js`) |
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Environment
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Variabel | Keterangan |
+|---|---|
+| `VITE_API_BASE_URL` | URL backend, misal `http://127.0.0.1:3001` |
+| `VITE_SOCKET_URL` | Opsional. Jika diisi, klien Socket.IO aktif untuk update realtime; jika kosong dashboard memakai polling |
+
+## Struktur
+
+```
+src/
+ ├─ app/              ThemeProvider, useTheme, Providers (react-query, tooltip, toaster), navigation
+ ├─ components/
+ │   ├─ layout/       AppShell (sidebar, topbar, KPI bar)
+ │   ├─ ui/           komponen shadcn/radix
+ │   └─ Logo/         aset logo
+ ├─ features/
+ │   ├─ auth/         halaman login
+ │   └─ dashboard/    halaman Overview, Monitoring Mesin, Summary Harian, Trend, Pengaturan
+ │       ├─ components/   KPI cards, tabel mesin, dialog detail, peta lokasi
+ │       ├─ hooks/        useDevices (polling + seam untuk update realtime)
+ │       ├─ utils/        status efektif mesin, kalkulasi KPI
+ │       └─ config/       posisi slot mesin di denah
+ ├─ lib/              api (klien REST), http (fetch wrapper), socket, utils/format
+ └─ types/            tipe respons API dan Device
 ```

@@ -20,7 +20,7 @@ async function safeParseJson(res: Response): Promise<unknown> {
   try {
     return JSON.parse(text);
   } catch {
-    return text; // fallback
+    return text;
   }
 }
 
@@ -36,7 +36,7 @@ export async function http<T>(
     const res = await fetch(input, {
       ...init,
       signal: controller.signal,
-      credentials: "include", // Important for cookies
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...(init?.headers ?? {}),
@@ -46,7 +46,6 @@ export async function http<T>(
     const body = await safeParseJson(res);
 
     if (!res.ok) {
-      // coba ambil message yang jelas
       const msg =
         (isObject(body) && typeof body.message === "string" && body.message) ||
         `Request failed (${res.status})`;
@@ -54,8 +53,8 @@ export async function http<T>(
     }
 
     return body as T;
-  } catch (err: any) {
-    if (err?.name === "AbortError") {
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
       throw new HttpError("Request timeout. Coba lagi.", 408);
     }
     throw err;

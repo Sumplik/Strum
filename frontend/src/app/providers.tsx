@@ -2,13 +2,13 @@ import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { HttpError } from "@/lib/http";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: (failureCount, error: any) => {
-        // retry yang "masuk akal"
-        if (error?.status && [400, 401, 403, 404].includes(error.status)) return false;
+      retry: (failureCount, error) => {
+        if (error instanceof HttpError && [400, 401, 403, 404].includes(error.status)) return false;
         return failureCount < 2;
       },
       refetchOnWindowFocus: false,

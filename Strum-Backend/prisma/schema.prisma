@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,47 +6,75 @@ datasource db {
   provider = "postgresql"
 }
 
+enum MachineStatus {
+  off
+  idle
+  on_duty
+}
+
+model Branch {
+  id        String   @id
+  name      String
+  opsStart  String   @default("08:00")
+  opsEnd    String   @default("17:00")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  devices Device[]
+  logs    DeviceLog[]
+}
+
 model Device {
-  id        String      @id // device_id
-  status    String      @default("off") // off, idle, on_duty (diekstrak untuk indexing/stats cepat)
-  lastSeen  DateTime    @default(now())
-  rawData   Json        // Menyimpan raw json payload terakhir
-  
-  // Field-field tambahan untuk frontend
-  ipAddress     String?
-  voltase       Float?
-  arus          Float?
-  suhu          Float?
-  kelembapan    Float?
-  thresholdIdle Float?
-  thresholdDuty Float?
-  location      String?   // Lokasi/workshop (W1, W2, W3, W4, W5, G1)
-  
-  logs      DeviceLog[]
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id              String        @id @default(uuid())
+  branchId        String
+  branch          Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  code            String
+  status          MachineStatus @default(off)
+  reportedStatus  String?
+  lastSeen        DateTime      @default(now())
+  location        String?
+  ipAddress       String?
+  firmwareVersion String?
+  threshold       Float?
+  arus            Float?
+  voltase         Float?
+  suhu            Float?
+  kelembapan      Float?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  logs DeviceLog[]
+
+  @@unique([branchId, code])
+  @@index([branchId, status])
+  @@index([branchId, lastSeen])
 }
 
 model DeviceLog {
-  id        String   @id @default(uuid())
-  deviceId  String
-  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  timestamp DateTime
-  rawData   Json     // Raw json payload saat itu
-  createdAt DateTime @default(now())
+  id             String        @id @default(uuid())
+  deviceId       String
+  device         Device        @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  branchId       String
+  branch         Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  timestamp      DateTime
+  status         MachineStatus
+  reportedStatus String?
+  threshold      Float?
+  arus           Float?
+  voltase        Float?
+  suhu           Float?
+  kelembapan     Float?
+  ipAddress      String?
+  createdAt      DateTime      @default(now())
 
-  status    String   // off, idle, on_duty
-  @@index([deviceId, timestamp]) // Penting untuk query kalkulasi durasi/summary
-  @@index([timestamp])
+  @@unique([deviceId, timestamp])
+  @@index([branchId, timestamp])
 }
 
 model User {
-  id       String @id @default(uuid())
-  username String @unique
-  password String // Disimpan dalam bentuk hash (bcrypt/argon2)
-}
-
-model AppConfig {
-  key   String @id // "operational_hours"
-  value Json   // {"start": "08:00", "end": "17:00"}
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
