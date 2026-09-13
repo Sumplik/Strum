@@ -1,8 +1,9 @@
 import * as React from "react";
-import { Alert } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
 
+import { useBranch } from "@/app/useBranch";
+import { queryErrorMessage } from "@/lib/query";
 import { useDevices } from "@/features/dashboard/hooks/useDevices";
 
 import { MapLayout, type MapFilter } from "@/features/dashboard/components/MapLayout";
@@ -10,19 +11,12 @@ import DeviceDetailDialog from "@/features/dashboard/components/DeviceDetailDial
 import type { Device } from "@/types/device";
 
 export default function OverviewPage() {
-  const devicesQ = useDevices();
+  const { branchId } = useBranch();
+  const devicesQ = useDevices(branchId);
 
   const [filter, setFilter] = React.useState<MapFilter>("all");
   const [selected, setSelected] = React.useState<Device | null>(null);
   const [open, setOpen] = React.useState(false);
-
-  const devices = devicesQ.data && devicesQ.data.success ? devicesQ.data.data : [];
-
-  React.useEffect(() => {
-    if (devicesQ.isError) {
-      toast.error("Gagal ambil data dari backend. Cek server & CORS.");
-    }
-  }, [devicesQ.isError]);
 
   if (devicesQ.isLoading) {
     return (
@@ -32,10 +26,13 @@ export default function OverviewPage() {
     );
   }
 
-  if (!devicesQ.data || devicesQ.data.success === false) {
+  const errorMessage = queryErrorMessage(devicesQ, "Gagal mengambil data dari server");
+  if (errorMessage || !devicesQ.data?.success) {
     return (
       <Alert variant="destructive" className="rounded-2xl">
-        Gagal mengambil data dari server. Pastikan backend running di port yang benar dan CORS aktif.
+        <AlertDescription>
+          {errorMessage ?? "Gagal mengambil data dari server"}. Pastikan backend running di port yang benar dan CORS aktif.
+        </AlertDescription>
       </Alert>
     );
   }
@@ -43,7 +40,8 @@ export default function OverviewPage() {
   return (
     <div className="space-y-4">
       <MapLayout
-        devices={devices}
+        branchId={branchId}
+        devices={devicesQ.data.data}
         filter={filter}
         onFilterChange={setFilter}
         onSelect={(d) => {
@@ -56,4 +54,3 @@ export default function OverviewPage() {
     </div>
   );
 }
-

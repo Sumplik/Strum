@@ -245,3 +245,38 @@ export async function summarizeBranch(branch: Branch, start: Date, end: Date, no
   const devices = await prisma.device.findMany({ where: { branchId: branch.id }, orderBy: { code: "asc" } });
   return summarizeDevices(branch, devices, start, end, now);
 }
+
+export interface BranchSummaryInfo {
+  branchId: string;
+  operationalHours: OperationalHours;
+  averageAvailabilityPercent: number;
+}
+
+export interface MultiBranchSummaryReport {
+  range: { start: Date; end: Date; effectiveEnd: Date };
+  branches: BranchSummaryInfo[];
+  // Every machine across all branches, ordered by branch then code.
+  devices: DeviceSummaryRow[];
+  averageAvailabilityPercent: number;
+}
+
+// All machines in every branch; operational hours are applied per branch.
+export async function summarizeAllBranches(start: Date, end: Date, now = new Date()): Promise<MultiBranchSummaryReport> {
+  const branches = await prisma.branch.findMany({ orderBy: { id: "asc" } });
+  const reports = await Promise.all(branches.map((branch) => summarizeBranch(branch, start, end, now)));
+  const devices = reports.flatMap((report) => report.devices);
+  const average = devices.length
+    ? devices.reduce((acc, row) => acc + row.summary.availabilityPercent, 0) / devices.length
+    : 0;
+
+  return {
+    range: { start, end, effectiveEnd: end > now ? now : end },
+    branches: reports.map(({ branchId, operationalHours, averageAvailabilityPercent }) => ({
+      branchId,
+      operationalHours,
+      averageAvailabilityPercent,
+    })),
+    devices,
+    averageAvailabilityPercent: round2(average),
+  };
+}

@@ -1,19 +1,14 @@
+import type { Device } from "./device";
+
 export type ApiSuccess<T> = { success: true; data: T };
 export type ApiFail = { success: false; message?: string };
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiFail;
 
-export interface Stats {
-  total: number;
-  on: number;
-  idle: number;
-  onDuty: number;
-  off: number;
-  online: number;
-  disconnect: number;
-  percentOnDuty: number;
-  percentIdle: number;
-  percentOff: number;
+// User yang sedang login (POST /api/auth/login, GET /api/auth/me)
+export interface SessionUser {
+  id: string;
+  username: string;
 }
 
 export interface OperationalHours {
@@ -21,35 +16,49 @@ export interface OperationalHours {
   end: string;
 }
 
+// Cabang dari GET /api/branches
+export interface Branch {
+  id: string; // UP2W1 .. UP2W6
+  name: string;
+  operationalHours: OperationalHours;
+  deviceCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Ringkasan uptime satu mesin (satuan jam, desimal) dari GET /api/branches/:branchId/summary
 export interface DeviceSummary {
-  idle_hours: string;
-  onduty_hours: string;
-  on_total_hours: string;
-  off_hours: string;
-  disconnect_hours: string;
-
-  operational_on_hours: string;
-  operational_off_hours: string;
-  operational_idle_hours: string;
-  operational_disconnect_hours: string;
-
-  total_operational_hours: string;
-  availability_percent: string;
+  onDutyHours: number;
+  idleHours: number;
+  onTotalHours: number;
+  offHours: number;
+  disconnectHours: number;
+  operationalOnHours: number;
+  operationalIdleHours: number;
+  operationalOffHours: number;
+  operationalDisconnectHours: number;
+  totalOperationalHours: number;
+  availabilityPercent: number;
 }
 
 export interface DeviceSummaryRow {
-  device_id: string;
-  current?: {
-    location: string | null;
-    threshold: number | null;
-    ipAddress: string | null;
-  };
+  device: Device;
   summary: DeviceSummary;
 }
 
-export interface SummaryRangeResponse {
-  success: boolean;
-  range?: { startDate: string; endDate: string };
-  data: DeviceSummaryRow[];
-  message?: string;
+// GET /api/branches/:branchId/summary
+export interface SummaryReport {
+  branchId: string;
+  range: { start: string; end: string; effectiveEnd: string };
+  operationalHours: OperationalHours;
+  devices: DeviceSummaryRow[];
+  averageAvailabilityPercent: number;
+}
+
+// GET /api/summary — semua cabang; jam operasional masing-masing cabang ada di `branches`
+export interface MultiBranchSummaryReport {
+  range: { start: string; end: string; effectiveEnd: string };
+  branches: Array<{ branchId: string; operationalHours: OperationalHours; averageAvailabilityPercent: number }>;
+  devices: DeviceSummaryRow[];
+  averageAvailabilityPercent: number;
 }

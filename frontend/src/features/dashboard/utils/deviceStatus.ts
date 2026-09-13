@@ -1,10 +1,10 @@
 import type { Device, DeviceStatus } from "@/types/device";
 
-export const DISCONNECT_TIMEOUT_MS = 6 * 60 * 1000;
-
+// Status mesin termasuk "disconnect" (tidak mengirim data > 6 menit); backend yang menentukan lewat
+// `device.online` / `device.effectiveStatus`, frontend hanya menampilkan.
 export type EffectiveDeviceStatus = DeviceStatus | "disconnect";
 
-export const STATUS_LABELS: Record<"on_duty" | "idle" | "off" | "disconnect", string> = {
+const STATUS_LABELS: Record<EffectiveDeviceStatus, string> = {
   on_duty: "On Duty",
   idle: "Idle",
   off: "OFF",
@@ -12,43 +12,15 @@ export const STATUS_LABELS: Record<"on_duty" | "idle" | "off" | "disconnect", st
 };
 
 export function statusLabel(status?: EffectiveDeviceStatus | null): string {
-  const key = (status ?? "off").toString();
-  return key in STATUS_LABELS ? STATUS_LABELS[key as keyof typeof STATUS_LABELS] : STATUS_LABELS.off;
+  return STATUS_LABELS[status ?? "off"] ?? STATUS_LABELS.off;
 }
 
+// Menit sejak data terakhir diterima; null jika lastSeen tidak valid.
 export function minutesSince(lastSeen?: string | Date | null): number | null {
   if (!lastSeen) return null;
   const ts = new Date(lastSeen).getTime();
   if (Number.isNaN(ts)) return null;
-  return Math.floor((Date.now() - ts) / (1000 * 60));
-}
-
-export const DEVICE_WARNING_MINUTES = 5;
-
-export function warningMinutes(device: Device): number | null {
-  const minutes = minutesSince(device.lastSeen);
-  return minutes !== null && minutes > DEVICE_WARNING_MINUTES ? minutes : null;
-}
-
-export function isDeviceWarning(device: Device): boolean {
-  return warningMinutes(device) !== null;
-}
-
-export function isDeviceOnline(lastSeen?: string | Date | null): boolean {
-  if (!lastSeen) return false;
-  const ts = new Date(lastSeen).getTime();
-  if (Number.isNaN(ts)) return false;
-  return Date.now() - ts <= DISCONNECT_TIMEOUT_MS;
-}
-
-export function getEffectiveStatus(device: Device): EffectiveDeviceStatus {
-  if (!isDeviceOnline(device.lastSeen)) return "disconnect";
-
-  if (device.status === "on_duty" || device.status === "idle" || device.status === "off") {
-    return device.status;
-  }
-
-  return "disconnect";
+  return Math.max(0, Math.floor((Date.now() - ts) / (1000 * 60)));
 }
 
 export interface DeviceStats {
@@ -67,8 +39,9 @@ export interface DeviceStats {
 const roundPct = (part: number, whole: number) =>
   whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0;
 
+// Status idle/on_duty/off hanya dihitung untuk mesin yang online; sisanya masuk "disconnect".
 export function calculateDeviceStats(devices: Device[]): DeviceStats {
-  const onlineDevices = devices.filter((d) => isDeviceOnline(d.lastSeen));
+  const onlineDevices = devices.filter((d) => d.online);
 
   const total = devices.length;
   const online = onlineDevices.length;

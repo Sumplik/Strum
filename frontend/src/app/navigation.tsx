@@ -3,20 +3,30 @@ import { BarChart3, LayoutDashboard, Settings, TrendingUp, Wrench } from "lucide
 
 export type DashboardRoute = "overview" | "machines" | "reports" | "trends" | "settings";
 
-export const DASHBOARD_ROUTES: ReadonlyArray<{
+interface RouteDefinition {
   key: DashboardRoute;
   label: string;
   icon: ReactNode;
-}> = [
-  { key: "overview", label: "Overview", icon: <LayoutDashboard className="h-4 w-4" /> },
-  { key: "machines", label: "Monitoring Mesin", icon: <Wrench className="h-4 w-4" /> },
-  { key: "reports", label: "Summary Harian", icon: <BarChart3 className="h-4 w-4" /> },
-  { key: "trends", label: "Trend Mingguan/Bulanan", icon: <TrendingUp className="h-4 w-4" /> },
-  { key: "settings", label: "Pengaturan", icon: <Settings className="h-4 w-4" /> },
+  // Dropdown cabang di topbar menawarkan "Semua cabang" (halaman yang isinya bisa lintas cabang).
+  allowAllBranches: boolean;
+}
+
+export const DASHBOARD_ROUTES: ReadonlyArray<RouteDefinition> = [
+  { key: "overview", label: "Overview", icon: <LayoutDashboard className="h-4 w-4" />, allowAllBranches: false },
+  { key: "machines", label: "Monitoring Mesin", icon: <Wrench className="h-4 w-4" />, allowAllBranches: true },
+  { key: "reports", label: "Summary Harian", icon: <BarChart3 className="h-4 w-4" />, allowAllBranches: true },
+  { key: "trends", label: "Trend Mingguan/Bulanan", icon: <TrendingUp className="h-4 w-4" />, allowAllBranches: true },
+  { key: "settings", label: "Pengaturan", icon: <Settings className="h-4 w-4" />, allowAllBranches: false },
 ];
 
+const routeDefinition = (route: DashboardRoute) => DASHBOARD_ROUTES.find((item) => item.key === route);
+
 export function routeLabel(route: DashboardRoute): string {
-  return DASHBOARD_ROUTES.find((item) => item.key === route)?.label ?? "";
+  return routeDefinition(route)?.label ?? "";
+}
+
+export function routeAllowsAllBranches(route: DashboardRoute): boolean {
+  return routeDefinition(route)?.allowAllBranches ?? false;
 }
 
 export function useDashboardRoute() {

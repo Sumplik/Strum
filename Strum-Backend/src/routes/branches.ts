@@ -31,7 +31,9 @@ export const branchRoutes = new Elysia({ prefix: "/branches" })
 
   .get("/:branchId", async ({ params }) => {
     const branch = await requireBranch(params.branchId);
-    return { success: true, data: { ...serializeBranch(branch), stats: await getBranchStats(branch.id) } };
+    const stats = await getBranchStats(branch.id);
+    // deviceCount diisi dari stats supaya bentuknya sama dengan GET /branches.
+    return { success: true, data: { ...serializeBranch({ ...branch, _count: { devices: stats.total } }), stats } };
   })
 
   .patch(

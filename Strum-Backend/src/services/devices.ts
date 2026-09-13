@@ -1,4 +1,4 @@
-import type { Device, DeviceLog, MachineStatus } from "@prisma/client";
+import type { Device, DeviceLog, MachineStatus, Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { DISCONNECT_TIMEOUT_MS } from "../config";
 import { badRequest, notFound } from "../lib/errors";
@@ -58,11 +58,11 @@ export interface DeviceFilter {
   search?: string;
 }
 
-export async function listDevices(branchId: string, filter: DeviceFilter = {}, now = new Date()) {
+async function queryDevices(scope: Prisma.DeviceWhereInput, filter: DeviceFilter, now: Date) {
   const search = filter.search?.trim();
   const rows = await prisma.device.findMany({
     where: {
-      branchId,
+      ...scope,
       ...(filter.status && filter.status !== "disconnect" ? { status: filter.status } : {}),
       ...(search
         ? {
@@ -74,13 +74,22 @@ export async function listDevices(branchId: string, filter: DeviceFilter = {}, n
           }
         : {}),
     },
-    orderBy: { code: "asc" },
+    orderBy: [{ branchId: "asc" }, { code: "asc" }],
   });
 
   const devices = rows.map((row) => serializeDevice(row, now));
   if (filter.status === "disconnect") return devices.filter((d) => !d.online);
   if (filter.status) return devices.filter((d) => d.online);
   return devices;
+}
+
+export function listDevices(branchId: string, filter: DeviceFilter = {}, now = new Date()) {
+  return queryDevices({ branchId }, filter, now);
+}
+
+// Every machine across all branches, ordered by branch then code.
+export function listAllDevices(filter: DeviceFilter = {}, now = new Date()) {
+  return queryDevices({}, filter, now);
 }
 
 export async function requireDevice(branchId: string, rawCode: string): Promise<Device> {

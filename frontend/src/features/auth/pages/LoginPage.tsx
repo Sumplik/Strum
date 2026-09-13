@@ -46,6 +46,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         setTimeout(onLoginSuccess, 800);
         return;
       }
+      // http() melempar HttpError untuk status non-2xx, jadi cabang ini hanya untuk respons 2xx yang success=false.
       showError(response.message || "Login gagal", response.message || "Username atau password salah");
     } catch (err) {
       showError(err instanceof Error && err.message ? err.message : "Terjadi kesalahan saat login");

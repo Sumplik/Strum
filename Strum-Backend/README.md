@@ -176,7 +176,8 @@ Semua endpoint kecuali `/api/health` dan `/api/auth/login` memerlukan cookie `au
 
 | Method | Endpoint | Keterangan |
 |---|---|---|
-| GET | `/api/branches/:branchId/devices?status=&search=` | Daftar mesin. `status`: `on_duty`/`idle`/`off`/`disconnect`; `search` cocok ke kode, lokasi, IP |
+| GET | `/api/devices?status=&search=` | Semua mesin di **semua cabang** (urut cabang lalu kode), filter sama seperti di bawah |
+| GET | `/api/branches/:branchId/devices?status=&search=` | Daftar mesin satu cabang. `status`: `on_duty`/`idle`/`off`/`disconnect`; `search` cocok ke kode, lokasi, IP |
 | GET | `/api/branches/:branchId/devices/:code` | Detail mesin (kode tidak peka huruf besar/kecil) |
 | DELETE | `/api/branches/:branchId/devices/:code` | Hapus mesin beserta lognya (destruktif) |
 | GET | `/api/branches/:branchId/devices/:code/logs?limit=200&before=&start=&end=` | Log terbaru lebih dulu, maks 1000/halaman; lanjutkan dengan `meta.nextBefore` |
@@ -199,6 +200,7 @@ Objek mesin:
 
 | Method | Endpoint | Keterangan |
 |---|---|---|
+| GET | `/api/summary?start=YYYY-MM-DD&end=YYYY-MM-DD` | Semua mesin di **semua cabang** (jam operasional per cabang); respons punya `branches[]` + `devices[]` + `averageAvailabilityPercent` |
 | GET | `/api/branches/:branchId/summary?start=YYYY-MM-DD&end=YYYY-MM-DD` | Semua mesin di cabang, maks 93 hari |
 | GET | `/api/branches/:branchId/devices/:code/summary?start=&end=` | Satu mesin |
 
@@ -229,14 +231,16 @@ Objek mesin:
 
 | Method | Endpoint | Keterangan |
 |---|---|---|
+| GET | `/api/exports/logs?format=xlsx\|csv&start=&end=` | Log semua mesin di **semua cabang** |
 | GET | `/api/branches/:branchId/exports/logs?format=xlsx\|csv&start=&end=` | Log semua mesin di cabang |
 | GET | `/api/branches/:branchId/devices/:code/exports/logs?format=&start=&end=` | Log **satu mesin** |
-| GET | `/api/branches/:branchId/exports/summary?format=&start=&end=` | Tabel availability per mesin |
+| GET | `/api/exports/summary?format=&start=&end=` | Tabel availability per mesin, **semua cabang** |
+| GET | `/api/branches/:branchId/exports/summary?format=&start=&end=` | Tabel availability per mesin di cabang |
 
 - Kolom log: Waktu (zona `TIMEZONE`), Cabang, ID Mesin, Lokasi, Status, Status Dilaporkan, Arus (A), Voltase (V), Suhu (°C), Kelembapan (%), Threshold (A), IP Address.
 - `xlsx`: header tebal, baris pertama dibekukan, angka tersimpan sebagai angka. Dibatasi 200.000 baris (413 jika lebih; persempit rentang atau pakai CSV).
 - `csv`: UTF-8 dengan BOM dan baris `CRLF` (langsung terbaca Excel). Tambahkan `&delimiter=semicolon` bila Excel di komputer memakai pemisah `;`. CSV di-stream, tidak ada batas baris.
-- Rentang maks 93 hari. Nama file: `strum-logs-UP2W1_6CNC1-2026-09-01_2026-09-30.xlsx`.
+- Rentang maks 93 hari. Nama file: `strum-logs-UP2W1_6CNC1-2026-09-01_2026-09-30.xlsx` (semua cabang: `strum-logs-SEMUA-CABANG-...`).
 
 Contoh (browser sudah login):
 

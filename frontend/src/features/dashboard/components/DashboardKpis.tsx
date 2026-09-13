@@ -1,13 +1,16 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { DeviceScope } from "@/app/useBranch";
+import { queryErrorMessage } from "@/lib/query";
 import { useDevices } from "@/features/dashboard/hooks/useDevices";
 import { KpiCard, KpiPill } from "@/features/dashboard/components/KpiCards";
 import { calculateDeviceStats } from "@/features/dashboard/utils/deviceStatus";
 
 const GRID = "grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5";
 
-export function DashboardKpis() {
-  const q = useDevices();
+// Ringkasan status mesin untuk cakupan halaman yang sedang dibuka (lihat AppShell).
+export function DashboardKpis({ scope }: { scope: DeviceScope }) {
+  const q = useDevices(scope);
 
   if (q.isLoading) {
     return (
@@ -19,16 +22,16 @@ export function DashboardKpis() {
     );
   }
 
-  if (!q.data || q.data.success === false) {
+  const errorMessage = queryErrorMessage(q, "KPI gagal dimuat");
+  if (errorMessage || !q.data?.success) {
     return (
       <Alert variant="destructive" className="rounded-2xl">
-        KPI gagal dimuat. Cek backend / CORS.
+        <AlertDescription>{errorMessage ?? "KPI gagal dimuat"}. Cek backend / CORS.</AlertDescription>
       </Alert>
     );
   }
 
   const stats = calculateDeviceStats(q.data.data);
-
   return (
     <div className={GRID}>
       <KpiCard

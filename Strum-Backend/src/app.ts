@@ -6,8 +6,8 @@ import { HttpError } from "./lib/errors";
 import { requireAuth } from "./plugins/auth";
 import { authRoutes } from "./routes/auth";
 import { branchRoutes, overviewRoutes } from "./routes/branches";
-import { deviceRoutes } from "./routes/devices";
-import { exportRoutes } from "./routes/exports";
+import { crossBranchRoutes, deviceRoutes } from "./routes/devices";
+import { crossBranchExportRoutes, exportRoutes } from "./routes/exports";
 import { healthRoutes } from "./routes/health";
 
 function fail(set: { status?: number | string }, status: number, message: string, details?: unknown) {
@@ -18,6 +18,8 @@ function fail(set: { status?: number | string }, status: number, message: string
 const protectedApi = new Elysia({ prefix: "/api" })
   .use(requireAuth)
   .use(overviewRoutes)
+  .use(crossBranchRoutes)
+  .use(crossBranchExportRoutes)
   .use(branchRoutes)
   .use(deviceRoutes)
   .use(exportRoutes);
@@ -43,7 +45,8 @@ export function createApp() {
       console.error("❌ Unhandled error:", error);
       return fail(set, 500, "Terjadi kesalahan internal");
     })
-    .use(cors({ origin: config.corsOrigins, credentials: true }))
+    // Content-Disposition is exposed so the dashboard can read the export filename cross-origin.
+    .use(cors({ origin: config.corsOrigins, credentials: true, exposeHeaders: ["Content-Disposition"] }))
     .use(healthRoutes)
     .use(authRoutes)
     .use(protectedApi);

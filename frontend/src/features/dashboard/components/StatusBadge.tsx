@@ -2,33 +2,28 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { TriangleAlert } from "lucide-react";
 import type { Device } from "@/types/device";
 import { fmtDateTime } from "@/lib/utils";
-import {
-  statusLabel,
-  warningMinutes,
-  type EffectiveDeviceStatus,
-} from "@/features/dashboard/utils/deviceStatus";
+import { minutesSince, statusLabel, type EffectiveDeviceStatus } from "@/features/dashboard/utils/deviceStatus";
 
-const STATUS_COLORS: Record<string, string> = {
-  disconnect: "bg-slate-500",
+const STATUS_COLORS: Record<EffectiveDeviceStatus, string> = {
   on_duty: "bg-green-500",
   idle: "bg-blue-500",
+  off: "bg-red-500",
+  disconnect: "bg-slate-500",
 };
 
 export function StatusBadge({ status }: { status?: EffectiveDeviceStatus | null }) {
-  const key = (status ?? "off").toString();
-
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold text-white border-0 shadow-none hover:text-white focus:text-white ${STATUS_COLORS[key] ?? "bg-red-500"}`}
+      className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold text-white ${STATUS_COLORS[status ?? "off"]}`}
     >
       {statusLabel(status)}
     </span>
   );
 }
 
+// Peringatan untuk mesin yang sudah tidak mengirim data (offline), dengan detail status terakhir.
 export function WarningBadge({ device }: { device: Device }) {
-  const minutesAgo = warningMinutes(device);
-  if (minutesAgo === null) return null;
+  const minutesAgo = minutesSince(device.lastSeen);
 
   return (
     <Tooltip>
@@ -52,7 +47,7 @@ export function WarningBadge({ device }: { device: Device }) {
           </div>
           <div>Status terakhir: {statusLabel(device.status)}</div>
           <div>Last seen: {fmtDateTime(device.lastSeen)}</div>
-          <div>Terlambat: {minutesAgo} menit lalu</div>
+          <div>Terlambat: {minutesAgo === null ? "-" : `${minutesAgo} menit lalu`}</div>
           <div>Arus terakhir: {device.arus ?? "-"}</div>
           <div>Voltase terakhir: {device.voltase ?? "-"}</div>
           <div>Lokasi: {device.location ?? "-"}</div>

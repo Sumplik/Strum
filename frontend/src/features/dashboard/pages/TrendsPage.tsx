@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { differenceInCalendarDays, differenceInCalendarMonths, endOfMonth, min, startOfMonth, subDays, subMonths } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -12,152 +13,98 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RefreshCw, Download } from "lucide-react";
-import { api } from "@/lib/api";
-import { averagePercent, cn, formatApiDate, formatHours } from "@/lib/utils";
-import { useDevices } from "@/features/dashboard/hooks/useDevices";
-import type { DeviceSummary, DeviceSummaryRow } from "@/types/api";
+import { RefreshCw } from "lucide-react";
+import { MAX_SUMMARY_RANGE_DAYS } from "@/lib/api";
+import { cn, formatApiDate } from "@/lib/utils";
+import { useBranch } from "@/app/useBranch";
 import { DateRangePicker, MonthYearPicker } from "@/components/ui/date-picker";
+import { useSummary } from "@/features/dashboard/hooks/useSummary";
+import { ExportCsvButton } from "@/features/dashboard/components/ExportCsvButton";
+import { BranchBadge } from "@/features/dashboard/components/DeviceBadges";
+import { availabilityColor, formatHours } from "@/features/dashboard/utils/summary";
 import { toast } from "sonner";
 
 type Period = "mingguan" | "bulanan";
+type DateRange = { from: Date; to: Date };
 
 const MAX_WEEKLY_RANGE_DAYS = 30;
-const MAX_MONTHLY_RANGE_MONTHS = 12;
+// Tiga bulan kalender penuh selalu <= 93 hari, batas rentang di backend.
+const MAX_MONTHLY_RANGE_MONTHS = 3;
+const COLUMN_COUNT = 6;
 
-interface SummaryRow {
-  device_id: string;
-  name: string;
-  summary: DeviceSummary;
+// Rentang default tiap periode: 7 hari terakhir, atau 3 bulan terakhir (bulan berjalan sampai hari ini).
+function defaultRange(period: Period): DateRange {
+  const today = new Date();
+  return period === "mingguan"
+    ? { from: subDays(today, 7), to: today }
+    : { from: startOfMonth(subMonths(today, MAX_MONTHLY_RANGE_MONTHS - 1)), to: today };
 }
 
-function daysAgo(days: number): Date {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return date;
-}
-
-function monthsAgo(months: number): Date {
-  const date = new Date();
-  date.setMonth(date.getMonth() - months);
-  return date;
-}
-
-const firstDayOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
-const lastDayOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
-
-function availabilityColor(value: number): string {
-  if (value >= 90) return "text-green-600";
-  if (value >= 70) return "text-yellow-600";
-  return "text-red-600";
-}
-
-function dedupeByDevice(rows: DeviceSummaryRow[]): DeviceSummaryRow[] {
-  const seen = new Map<string, DeviceSummaryRow>();
-  for (const row of rows) {
-    const key = row.device_id.trim().toLowerCase();
-    if (!seen.has(key)) seen.set(key, row);
-  }
-  return Array.from(seen.values());
-}
+// Rentang bulanan mencakup bulan penuh, tetapi bulan berjalan dihitung sampai hari ini.
+const monthRangeToDays = (range: DateRange): DateRange => ({
+  from: startOfMonth(range.from),
+  to: min([endOfMonth(range.to), new Date()]),
+});
 
 export default function TrendsPage() {
+  const { scope, branchLabel } = useBranch();
+  const label = branchLabel(scope);
+
   const [period, setPeriod] = useState<Period>("bulanan");
+  const [weekRange, setWeekRange] = useState<DateRange>(() => defaultRange("mingguan"));
+  const [monthRange, setMonthRange] = useState<DateRange>(() => defaultRange("bulanan"));
+  // Rentang hari yang benar-benar dikirim ke API (turunan dari picker yang aktif).
+  const [range, setRange] = useState<DateRange>(() => defaultRange("bulanan"));
 
-  const [weekRange, setWeekRange] = useState<{ from?: Date; to?: Date }>(() => ({
-    from: daysAgo(7),
-    to: new Date(),
-  }));
-  const [monthRange, setMonthRange] = useState<{ from?: Date; to?: Date }>(() => ({
-    from: monthsAgo(3),
-    to: new Date(),
-  }));
-
-  const [range, setRange] = useState(() => ({
-    start: formatApiDate(firstDayOfMonth(monthsAgo(3))),
-    end: formatApiDate(new Date()),
-  }));
+  const start = formatApiDate(range.from);
+  const end = formatApiDate(range.to);
 
   const handleDateRangeSelect = (from: Date | undefined, to: Date | undefined) => {
     if (!from || !to) return;
 
-    const diffDays = Math.ceil(Math.abs(to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays > MAX_WEEKLY_RANGE_DAYS) {
-      toast.error(`Maksimal range untuk Mingguan adalah ${MAX_WEEKLY_RANGE_DAYS} hari`);
-      return;
-    }
     if (to < from) {
       toast.error("Tanggal akhir harus >= tanggal awal");
       return;
     }
+    if (differenceInCalendarDays(to, from) + 1 > MAX_WEEKLY_RANGE_DAYS) {
+      toast.error(`Maksimal range untuk Mingguan adalah ${MAX_WEEKLY_RANGE_DAYS} hari`);
+      return;
+    }
 
     setWeekRange({ from, to });
-    setRange({ start: formatApiDate(from), end: formatApiDate(to) });
+    setRange({ from, to });
   };
 
   const handleMonthRangeSelect = (from: Date | undefined, to: Date | undefined) => {
     if (!from || !to) return;
 
-    const diffMonths = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
-    if (diffMonths >= MAX_MONTHLY_RANGE_MONTHS) {
-      toast.error(`Maksimal range untuk Bulanan adalah ${MAX_MONTHLY_RANGE_MONTHS} bulan`);
+    const months = differenceInCalendarMonths(to, from);
+    if (months < 0) {
+      toast.error("Bulan akhir harus >= bulan awal");
       return;
     }
-    if (to < from) {
-      toast.error("Bulan akhir harus >= bulan awal");
+    if (months >= MAX_MONTHLY_RANGE_MONTHS) {
+      toast.error(`Maksimal range untuk Bulanan adalah ${MAX_MONTHLY_RANGE_MONTHS} bulan (${MAX_SUMMARY_RANGE_DAYS} hari)`);
       return;
     }
 
     setMonthRange({ from, to });
-    setRange({ start: formatApiDate(firstDayOfMonth(from)), end: formatApiDate(lastDayOfMonth(to)) });
+    setRange(monthRangeToDays({ from, to }));
   };
 
   const handlePeriodChange = (value: string) => {
     const next = value as Period;
+    const initial = defaultRange(next);
     setPeriod(next);
-
-    const today = new Date();
-    if (next === "mingguan") {
-      const weekAgo = daysAgo(7);
-      setWeekRange({ from: weekAgo, to: today });
-      setRange({ start: formatApiDate(weekAgo), end: formatApiDate(today) });
-    } else {
-      const monthAgo = monthsAgo(3);
-      setMonthRange({ from: monthAgo, to: today });
-      setRange({ start: formatApiDate(firstDayOfMonth(monthAgo)), end: formatApiDate(today) });
-    }
+    if (next === "mingguan") setWeekRange(initial);
+    else setMonthRange(initial);
+    setRange(initial);
   };
 
-  const devicesQuery = useDevices();
-  const summaryQuery = useQuery({
-    queryKey: ["summary", period, range.start, range.end],
-    queryFn: () => api.getRangeSummary(range.start, range.end),
-  });
+  const { query, rows, averageAvailabilityPercent, operationalHours, errorMessage } = useSummary(scope, start, end);
+  const isRefreshing = query.isFetching;
 
-  const devices = devicesQuery.data?.success ? devicesQuery.data.data : [];
-  const rows: SummaryRow[] =
-    summaryQuery.data?.success && devicesQuery.data?.success
-      ? dedupeByDevice(summaryQuery.data.data).map((item) => ({
-          device_id: item.device_id,
-          name: devices.find((d) => d.id === item.device_id)?.location || item.current?.location || "-",
-          summary: item.summary,
-        }))
-      : [];
-
-  const isLoading = devicesQuery.isLoading || summaryQuery.isLoading;
-  const isRefreshing = summaryQuery.isFetching;
-  const avgAvailability = averagePercent(rows.map((r) => r.summary.availability_percent));
-
-  const handleDownloadJson = async () => {
-    try {
-      await api.downloadLogs("json", range.start, range.end);
-      toast.success("Download JSON berhasil");
-    } catch {
-      toast.error("Download gagal");
-    }
-  };
-
-  if (isLoading) {
+  if (query.isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-[120px] rounded-2xl" />
@@ -170,8 +117,14 @@ export default function TrendsPage() {
     <div className="space-y-4">
       <Card className="bg-white dark:bg-[var(--card)]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-semibold">Trend Mingguan / Bulanan</CardTitle>
-          <p className="text-sm text-muted-foreground">Trend availability dari event log.</p>
+          <CardTitle className="text-lg font-semibold">
+            Trend Mingguan / Bulanan
+            <span className="ml-2 text-base font-semibold text-muted-foreground">{label}</span>
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Trend availability dari event log, {start} s/d {end} · jam operasional{" "}
+            {operationalHours ? `${operationalHours.start}–${operationalHours.end}` : "masing-masing cabang"}
+          </p>
         </CardHeader>
 
         <CardContent className="p-4 sm:p-6">
@@ -203,16 +156,16 @@ export default function TrendsPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5">
                 <span className="text-sm text-muted-foreground">Avg:</span>
-                <span className="text-lg font-bold">{avgAvailability}%</span>
+                <span className="text-lg font-bold">{averageAvailabilityPercent.toFixed(1)}%</span>
               </div>
 
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => summaryQuery.refetch()}
+                onClick={() => query.refetch()}
                 disabled={isRefreshing}
                 className="h-9 w-9 sm:w-auto"
               >
@@ -220,64 +173,80 @@ export default function TrendsPage() {
                 <span className="ml-2 hidden sm:inline">Refresh</span>
               </Button>
 
-              <Button size="sm" variant="ghost" onClick={handleDownloadJson}>
-                <Download className="mr-1 h-4 w-4" />
-                JSON
-              </Button>
+              {/* Log semua mesin dalam cakupan terpilih untuk rentang terpilih */}
+              <ExportCsvButton
+                params={{ scope, start, end }}
+                label="Export CSV"
+                title={`Unduh log semua mesin ${label} ${start} s/d ${end}`}
+                variant="outline"
+                className="h-9 rounded-xl"
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-white dark:bg-[var(--card)]">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Mesin</TableHead>
-                  <TableHead className="text-right">ON</TableHead>
-                  <TableHead className="text-right">OFF</TableHead>
-                  <TableHead className="text-right">Availability</TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {rows.map((item) => (
-                  <TableRow key={item.device_id}>
-                    <TableCell className="font-medium">
-                      <span className="font-bold">{item.device_id}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">{item.name}</span>
-                    </TableCell>
-                    <TableCell className="text-right">{formatHours(item.summary.on_total_hours)}</TableCell>
-                    <TableCell className="text-right">
-                      {formatHours(item.summary.operational_off_hours)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span
-                        className={cn(
-                          "font-bold",
-                          availabilityColor(parseFloat(item.summary.availability_percent)),
-                        )}
-                      >
-                        {item.summary.availability_percent}%
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-
-                {rows.length === 0 && (
+      {errorMessage ? (
+        <Alert variant="destructive" className="rounded-2xl">
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      ) : (
+        <Card className="bg-white dark:bg-[var(--card)]">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                      No data available for this period
-                    </TableCell>
+                    <TableHead>Mesin</TableHead>
+                    <TableHead>Cabang</TableHead>
+                    <TableHead className="text-right">ON</TableHead>
+                    <TableHead className="text-right">OFF</TableHead>
+                    <TableHead className="text-right">Availability</TableHead>
+                    <TableHead className="text-right">Export</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+
+                <TableBody>
+                  {rows.map(({ device, summary }) => (
+                    <TableRow key={device.id}>
+                      <TableCell className="font-medium">
+                        <span className="font-bold">{device.code}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{device.location ?? "-"}</span>
+                      </TableCell>
+                      <TableCell>
+                        <BranchBadge branchId={device.branchId} />
+                      </TableCell>
+                      <TableCell className="text-right">{formatHours(summary.onTotalHours)}</TableCell>
+                      <TableCell className="text-right">{formatHours(summary.operationalOffHours)}</TableCell>
+                      <TableCell className="text-right">
+                        <span className={cn("font-bold", availabilityColor(summary.availabilityPercent))}>
+                          {summary.availabilityPercent.toFixed(1)}%
+                        </span>
+                      </TableCell>
+
+                      {/* Log mesin ini saja untuk rentang terpilih */}
+                      <TableCell className="text-right">
+                        <ExportCsvButton
+                          params={{ scope: device.branchId, code: device.code, start, end }}
+                          title={`Unduh log ${device.code} ${start} s/d ${end}`}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+
+                  {rows.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={COLUMN_COUNT} className="h-24 text-center text-muted-foreground">
+                        Belum ada mesin terdaftar di {label}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

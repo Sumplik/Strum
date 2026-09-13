@@ -46,14 +46,17 @@ const SUMMARY_COLUMNS = [
   { header: "Availability (%)", width: 15 },
 ];
 
-type LogRow = Pick<DeviceLog, "timestamp" | "status" | "reportedStatus" | "arus" | "voltase" | "suhu" | "kelembapan" | "threshold" | "ipAddress"> & {
+type LogRow = Pick<
+  DeviceLog,
+  "branchId" | "timestamp" | "status" | "reportedStatus" | "arus" | "voltase" | "suhu" | "kelembapan" | "threshold" | "ipAddress"
+> & {
   device: Pick<Device, "code" | "location">;
 };
 
-function logToCells(branchId: string, log: LogRow): CellValue[] {
+function logToCells(log: LogRow): CellValue[] {
   return [
     formatLocal(log.timestamp),
-    branchId,
+    log.branchId,
     log.device.code,
     log.device.location,
     statusLabel(log.status),
@@ -67,25 +70,45 @@ function logToCells(branchId: string, log: LogRow): CellValue[] {
   ];
 }
 
-export interface LogExportScope {
-  branch: Branch;
+// What an export covers: every branch, one branch, or one machine of a branch.
+export interface ExportScope {
+  branch?: Branch;
   device?: Device;
   start: Date;
   end: Date;
 }
 
+const ALL_BRANCHES_TARGET = "SEMUA-CABANG";
+
+function scopeTarget(scope: ExportScope): string {
+  if (scope.branch && scope.device) return `${scope.branch.id}_${scope.device.code}`;
+  return scope.branch?.id ?? ALL_BRANCHES_TARGET;
+}
+
+// "Log UP2W1_6CNC1", "Summary Semua Cabang", ...
+export function sheetName(kind: "Log" | "Summary", scope: ExportScope): string {
+  if (scope.device) return `${kind} ${scope.device.code}`;
+  return `${kind} ${scope.branch?.id ?? "Semua Cabang"}`;
+}
+
+function logWhere(scope: ExportScope) {
+  return {
+    ...(scope.branch ? { branchId: scope.branch.id } : {}),
+    ...(scope.device ? { deviceId: scope.device.id } : {}),
+    timestamp: { gte: scope.start, lte: scope.end },
+  };
+}
+
 const BATCH_SIZE = 5000;
 
 // Keyset pagination over (timestamp, id) so exports never load the whole range at once.
-async function* iterateLogs(scope: LogExportScope): AsyncGenerator<LogRow> {
+async function* iterateLogs(scope: ExportScope): AsyncGenerator<LogRow> {
   let cursor: { timestamp: Date; id: string } | null = null;
 
   while (true) {
     const batch: (LogRow & { id: string })[] = await prisma.deviceLog.findMany({
       where: {
-        branchId: scope.branch.id,
-        ...(scope.device ? { deviceId: scope.device.id } : {}),
-        timestamp: { gte: scope.start, lte: scope.end },
+        ...logWhere(scope),
         ...(cursor
           ? {
               OR: [
@@ -99,6 +122,7 @@ async function* iterateLogs(scope: LogExportScope): AsyncGenerator<LogRow> {
       take: BATCH_SIZE,
       select: {
         id: true,
+        branchId: true,
         timestamp: true,
         status: true,
         reportedStatus: true,
@@ -119,9 +143,8 @@ async function* iterateLogs(scope: LogExportScope): AsyncGenerator<LogRow> {
   }
 }
 
-export function exportFilename(kind: "logs" | "summary", scope: LogExportScope, format: ExportFormat): string {
-  const target = scope.device ? `${scope.branch.id}_${scope.device.code}` : scope.branch.id;
-  return `strum-${kind}-${target}-${formatYmd(scope.start)}_${formatYmd(scope.end)}.${format}`;
+export function exportFilename(kind: "logs" | "summary", scope: ExportScope, format: ExportFormat): string {
+  return `strum-${kind}-${scopeTarget(scope)}-${formatYmd(scope.start)}_${formatYmd(scope.end)}.${format}`;
 }
 
 export const CONTENT_TYPES: Record<ExportFormat, string> = {
@@ -129,21 +152,15 @@ export const CONTENT_TYPES: Record<ExportFormat, string> = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 };
 
-export function exportLogsCsv(scope: LogExportScope, delimiter: CsvDelimiter): ReadableStream<Uint8Array> {
+export function exportLogsCsv(scope: ExportScope, delimiter: CsvDelimiter): ReadableStream<Uint8Array> {
   const rows = (async function* () {
-    for await (const log of iterateLogs(scope)) yield logToCells(scope.branch.id, log);
+    for await (const log of iterateLogs(scope)) yield logToCells(log);
   })();
   return csvStream(LOG_COLUMNS.map((c) => c.header), rows, delimiter);
 }
 
-export async function exportLogsXlsx(scope: LogExportScope): Promise<Uint8Array> {
-  const count = await prisma.deviceLog.count({
-    where: {
-      branchId: scope.branch.id,
-      ...(scope.device ? { deviceId: scope.device.id } : {}),
-      timestamp: { gte: scope.start, lte: scope.end },
-    },
-  });
+export async function exportLogsXlsx(scope: ExportScope): Promise<Uint8Array> {
+  const count = await prisma.deviceLog.count({ where: logWhere(scope) });
   if (count > MAX_XLSX_ROWS) {
     throw tooLarge(
       `Rentang ini berisi ${count} baris, melebihi batas ${MAX_XLSX_ROWS} untuk Excel. Persempit rentang tanggal atau gunakan format CSV.`,
@@ -151,15 +168,14 @@ export async function exportLogsXlsx(scope: LogExportScope): Promise<Uint8Array>
   }
 
   const rows: CellValue[][] = [];
-  for await (const log of iterateLogs(scope)) rows.push(logToCells(scope.branch.id, log));
+  for await (const log of iterateLogs(scope)) rows.push(logToCells(log));
 
-  const name = scope.device ? `Log ${scope.device.code}` : `Log ${scope.branch.id}`;
-  return buildXlsx([{ name, columns: LOG_COLUMNS, rows }]);
+  return buildXlsx([{ name: sheetName("Log", scope), columns: LOG_COLUMNS, rows }]);
 }
 
-function summaryToCells(branchId: string, row: DeviceSummaryRow): CellValue[] {
+function summaryToCells(row: DeviceSummaryRow): CellValue[] {
   return [
-    branchId,
+    row.device.branchId,
     row.device.code,
     row.device.location,
     row.summary.onDutyHours,
@@ -172,16 +188,10 @@ function summaryToCells(branchId: string, row: DeviceSummaryRow): CellValue[] {
   ];
 }
 
-export function exportSummaryCsv(branchId: string, rows: DeviceSummaryRow[], delimiter: CsvDelimiter) {
-  return csvStream(
-    SUMMARY_COLUMNS.map((c) => c.header),
-    rows.map((row) => summaryToCells(branchId, row)),
-    delimiter,
-  );
+export function exportSummaryCsv(rows: DeviceSummaryRow[], delimiter: CsvDelimiter) {
+  return csvStream(SUMMARY_COLUMNS.map((c) => c.header), rows.map(summaryToCells), delimiter);
 }
 
-export function exportSummaryXlsx(branchId: string, rows: DeviceSummaryRow[]): Uint8Array {
-  return buildXlsx([
-    { name: `Summary ${branchId}`, columns: SUMMARY_COLUMNS, rows: rows.map((row) => summaryToCells(branchId, row)) },
-  ]);
+export function exportSummaryXlsx(rows: DeviceSummaryRow[], scope: ExportScope): Uint8Array {
+  return buildXlsx([{ name: sheetName("Summary", scope), columns: SUMMARY_COLUMNS, rows: rows.map(summaryToCells) }]);
 }

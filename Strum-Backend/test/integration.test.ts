@@ -274,6 +274,41 @@ describe.skipIf(!TEST_DATABASE_URL)("integration", () => {
       expect(body.data.branches).toHaveLength(6);
       expect(body.data.totals.total).toBe(7);
     });
+
+    it("lists devices across all branches, ordered by branch then code", async () => {
+      const { status, body } = await json(await request("/api/devices"));
+      expect(status).toBe(200);
+      expect(body.data.map((d: any) => `${d.branchId}/${d.code}`)).toEqual([
+        "UP2W1/6CNC1",
+        "UP2W2/6CNC1",
+        "UP2W3/LIVE-1",
+        "UP2W5/SPACED",
+        "UP2W6/6CNC1",
+        "UP2W6/LEGACY-7",
+        "UP2W6/MESIN-OLD",
+      ]);
+
+      const searched = await json(await request("/api/devices?search=legacy"));
+      expect(searched.body.data.map((d: any) => d.code)).toEqual(["LEGACY-7"]);
+
+      const online = await json(await request("/api/devices?status=on_duty"));
+      expect(online.body.data.map((d: any) => d.code)).toEqual(["LIVE-1"]);
+    });
+
+    it("summarises every branch at once with per-branch operational hours", async () => {
+      const { status, body } = await json(await request("/api/summary?start=2026-01-05&end=2026-01-05"));
+      expect(status).toBe(200);
+      expect(body.data.branches.map((b: any) => b.branchId)).toEqual(BRANCHES);
+      expect(body.data.devices).toHaveLength(7);
+
+      const up2w1 = body.data.devices.find((row: any) => row.device.branchId === "UP2W1" && row.device.code === "6CNC1");
+      expect(up2w1.summary.availabilityPercent).toBe(1.11);
+      // Enam mesin punya satu log ON pada hari itu (0.1 jam dari 9 jam operasional = 1.11%);
+      // hanya LIVE-1 (UP2W3) yang lognya di luar rentang → rata-rata 6 × 1.11 / 7.
+      expect(body.data.averageAvailabilityPercent).toBe(0.95);
+
+      expect((await request("/api/summary?start=2026-01-01&end=2026-12-31")).status).toBe(400);
+    });
   });
 
   describe("exports", () => {
@@ -312,6 +347,22 @@ describe.skipIf(!TEST_DATABASE_URL)("integration", () => {
       const summarySheet = strFromU8(unzipSync(new Uint8Array(await summary.arrayBuffer()))["xl/worksheets/sheet1.xml"]);
       expect(summarySheet).toContain("Availability (%)");
       expect(summarySheet).toContain("<v>1.11</v>");
+    });
+
+    it("exports logs and summary across all branches", async () => {
+      const logs = await request("/api/exports/logs?format=csv&start=2026-01-05&end=2026-01-05");
+      expect(logs.status).toBe(200);
+      expect(logs.headers.get("content-disposition")).toContain("strum-logs-SEMUA-CABANG-2026-01-05_2026-01-05.csv");
+      const lines = (await logs.text()).split("\r\n").filter(Boolean);
+      // UP2W1: 4 log, UP2W2: 1, UP2W5: 1, UP2W6: 3 (+ header)
+      expect(lines).toHaveLength(10);
+      expect(new Set(lines.slice(1).map((line) => line.split(",")[1]))).toEqual(new Set(["UP2W1", "UP2W2", "UP2W5", "UP2W6"]));
+
+      const summary = await request("/api/exports/summary?format=xlsx&start=2026-01-05&end=2026-01-05");
+      expect(summary.status).toBe(200);
+      const sheet = strFromU8(unzipSync(new Uint8Array(await summary.arrayBuffer()))["xl/worksheets/sheet1.xml"]);
+      expect(sheet).toContain("UP2W6");
+      expect(sheet).toContain("LEGACY-7");
     });
 
     it("rejects unsupported formats", async () => {

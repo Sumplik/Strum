@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { ChevronLeft, ChevronRight, Moon, Sun, Menu, LogOut } from "lucide-react";
 import { useTheme } from "@/app/useTheme";
-import { DASHBOARD_ROUTES, type DashboardRoute } from "@/app/navigation";
+import { useBranch } from "@/app/useBranch";
+import { DASHBOARD_ROUTES, routeAllowsAllBranches, type DashboardRoute } from "@/app/navigation";
+import { BranchSelect } from "@/features/dashboard/components/BranchSelect";
 import { DashboardKpis } from "@/features/dashboard/components/DashboardKpis";
 import LogoLightMode from "@/components/Logo/emblem_lightmode.png";
 import LogoDarkMode from "@/components/Logo/emblem_darkmode.png";
@@ -308,6 +310,7 @@ function SidebarContent({
 
 export function AppShell(props: Props) {
   const { theme } = useTheme();
+  const { scope, branchId } = useBranch();
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   
   const {
@@ -321,7 +324,10 @@ export function AppShell(props: Props) {
   } = props;
 
   const isDark = theme === "dark";
-  
+  // Halaman lintas cabang boleh memilih "Semua cabang"; halaman lain selalu satu cabang konkret.
+  const allowAllBranches = routeAllowsAllBranches(route);
+  const kpiScope = allowAllBranches ? scope : branchId;
+
   // Theme-aware colors using CSS variables
   const mainBg = isDark ? "bg-[var(--background)]" : "bg-white";
   const topbarBg = isDark ? "bg-[var(--card)]" : "bg-[#87CEEB] shadow-[0_4px_6px_-1px_rgba(59,130,246,0.1)]";
@@ -398,19 +404,20 @@ export function AppShell(props: Props) {
                 </div>
               </div>
 
-              {/* Right Section: Last Update */}
+              {/* Right Section: Last Update + dropdown lokasi cabang */}
               <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 lg:justify-end">
                 {/* Last Update - responsive visibility */}
                 <span className={cn("text-[10px] sm:text-xs font-medium", textMuted)}>
                   {lastUpdateText ?? "Last update: -"}
                 </span>
+                <BranchSelect includeAll={allowAllBranches} />
               </div>
             </div>
           </div>
 
           {/* Machine Stats Cards - Visible on all pages */}
           <div className="mt-5">
-            <DashboardKpis />
+            <DashboardKpis scope={kpiScope} />
           </div>
 
           {/* Page Content */}

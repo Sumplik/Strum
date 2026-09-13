@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
   TableBody,
@@ -11,54 +11,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RefreshCw, Download } from "lucide-react";
-import { api } from "@/lib/api";
-import { averagePercent, cn, formatApiDate, formatHours } from "@/lib/utils";
-import { useDevices } from "@/features/dashboard/hooks/useDevices";
-import type { DeviceSummary } from "@/types/api";
-import { toast } from "sonner";
+import { RefreshCw } from "lucide-react";
+import { cn, formatApiDate } from "@/lib/utils";
+import { useBranch } from "@/app/useBranch";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useSummary } from "@/features/dashboard/hooks/useSummary";
+import { ExportCsvButton } from "@/features/dashboard/components/ExportCsvButton";
+import { BranchBadge, LocationBadge } from "@/features/dashboard/components/DeviceBadges";
+import { availabilityColor, formatHours } from "@/features/dashboard/utils/summary";
 
-interface SummaryRow {
-  device_id: string;
-  location: string | null;
-  summary: DeviceSummary;
-}
+const COLUMN_COUNT = 10;
 
 export default function ReportsDailyPage() {
+  const { scope, branchLabel } = useBranch();
+  const label = branchLabel(scope);
+
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => new Date());
   const tanggal = formatApiDate(selectedDate ?? new Date());
 
-  const devicesQuery = useDevices();
-  const summaryQuery = useQuery({
-    queryKey: ["daily-summary", tanggal],
-    queryFn: () => api.getDailySummary(tanggal),
-  });
+  const { query, rows, averageAvailabilityPercent, operationalHours, errorMessage } = useSummary(scope, tanggal, tanggal);
+  const isRefreshing = query.isFetching;
 
-  const devices = devicesQuery.data?.success ? devicesQuery.data.data : [];
-  const rows: SummaryRow[] =
-    summaryQuery.data?.success && devicesQuery.data?.success
-      ? summaryQuery.data.data.map((item) => ({
-          device_id: item.device_id,
-          location:
-            item.current?.location ?? devices.find((d) => d.id === item.device_id)?.location ?? null,
-          summary: item.summary,
-        }))
-      : [];
-
-  const isLoading = devicesQuery.isLoading || summaryQuery.isLoading;
-  const isRefreshing = summaryQuery.isFetching;
-  const avgAvailability = averagePercent(rows.map((r) => r.summary.availability_percent));
-
-  const download = async (format: "csv" | "json") => {
-    try {
-      await api.downloadLogs(format, tanggal, tanggal);
-    } catch {
-      toast.error("Download gagal");
-    }
-  };
-
-  if (isLoading) {
+  if (query.isLoading) {
     return (
       <div className="space-y-3 sm:space-y-4">
         <Skeleton className="h-[100px] sm:h-[120px] rounded-2xl" />
@@ -73,9 +47,11 @@ export default function ReportsDailyPage() {
         <CardHeader className="pb-2 px-3 sm:px-4 pt-3 sm:pt-4">
           <CardTitle className="text-base sm:text-lg font-semibold">
             Summary Harian (Availability)
+            <span className="ml-2 text-sm sm:text-base font-semibold text-muted-foreground">{label}</span>
           </CardTitle>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Laporan ketersediaan mesin harian berdasarkan data operasional
+            Laporan ketersediaan mesin harian berdasarkan jam operasional
+            {operationalHours ? ` cabang (${operationalHours.start}–${operationalHours.end})` : " masing-masing cabang"}
           </p>
         </CardHeader>
 
@@ -93,99 +69,107 @@ export default function ReportsDailyPage() {
               />
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
               <div className="flex items-center gap-2 rounded-lg bg-muted px-2 sm:px-3 py-1.5">
                 <span className="text-xs sm:text-sm text-muted-foreground">Avg:</span>
-                <span className="text-base sm:text-lg font-bold">{avgAvailability}%</span>
+                <span className="text-base sm:text-lg font-bold">{averageAvailabilityPercent.toFixed(1)}%</span>
               </div>
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => summaryQuery.refetch()}
+                onClick={() => query.refetch()}
                 disabled={isRefreshing}
                 className="h-8 w-8 sm:h-9 sm:w-9"
               >
                 <RefreshCw className={cn("h-3 w-3 sm:h-4 sm:w-4", isRefreshing && "animate-spin")} />
               </Button>
 
-              <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-2">
-                {(["json", "csv"] as const).map((format) => (
-                  <Button
-                    key={format}
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => download(format)}
-                    className="h-8 px-2 sm:px-3 text-xs"
-                  >
-                    <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                    {format.toUpperCase()}
-                  </Button>
-                ))}
-              </div>
+              {/* Log semua mesin dalam cakupan terpilih untuk tanggal terpilih */}
+              <ExportCsvButton
+                params={{ scope, start: tanggal, end: tanggal }}
+                label="Export CSV"
+                title={`Unduh log semua mesin ${label} tanggal ${tanggal}`}
+                variant="outline"
+                className="h-8 sm:h-9 rounded-xl"
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-white dark:bg-[var(--card)]">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto scrollbar-thin">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[120px] sm:w-[250px]">Mesin</TableHead>
-                  <TableHead className="hidden sm:table-cell">Lokasi</TableHead>
-                  <TableHead className="text-right">ON</TableHead>
-                  <TableHead className="text-right hidden md:table-cell">Idle</TableHead>
-                  <TableHead className="text-right hidden lg:table-cell">On Duty</TableHead>
-                  <TableHead className="text-right">OFF</TableHead>
-                  <TableHead className="text-right">Disconnect</TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {rows.map((item) => (
-                  <TableRow key={item.device_id}>
-                    <TableCell className="font-medium">
-                      <span className="font-bold text-sm">{item.device_id}</span>
-                    </TableCell>
-
-                    <TableCell className="hidden sm:table-cell">
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                        {item.location ?? "-"}
-                      </span>
-                    </TableCell>
-
-                    <TableCell className="text-right text-sm">
-                      {formatHours(item.summary.on_total_hours)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm hidden md:table-cell">
-                      {formatHours(item.summary.idle_hours)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm hidden lg:table-cell">
-                      {formatHours(item.summary.onduty_hours)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {formatHours(item.summary.off_hours)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {formatHours(item.summary.disconnect_hours)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-
-                {rows.length === 0 && (
+      {errorMessage ? (
+        <Alert variant="destructive" className="rounded-2xl">
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      ) : (
+        <Card className="bg-white dark:bg-[var(--card)]">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto scrollbar-thin">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                      No data available for this date
-                    </TableCell>
+                    <TableHead className="min-w-[120px] sm:w-[220px]">Mesin</TableHead>
+                    <TableHead>Cabang</TableHead>
+                    <TableHead className="hidden sm:table-cell">Lokasi</TableHead>
+                    <TableHead className="text-right">ON</TableHead>
+                    <TableHead className="text-right hidden md:table-cell">Idle</TableHead>
+                    <TableHead className="text-right hidden lg:table-cell">On Duty</TableHead>
+                    <TableHead className="text-right">OFF</TableHead>
+                    <TableHead className="text-right">Disconnect</TableHead>
+                    <TableHead className="text-right">Availability</TableHead>
+                    <TableHead className="text-right">Export</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                </TableHeader>
+
+                <TableBody>
+                  {rows.map(({ device, summary }) => (
+                    <TableRow key={device.id}>
+                      <TableCell className="font-bold text-sm">{device.code}</TableCell>
+                      <TableCell>
+                        <BranchBadge branchId={device.branchId} />
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <LocationBadge location={device.location} />
+                      </TableCell>
+
+                      <TableCell className="text-right text-sm">{formatHours(summary.onTotalHours)}</TableCell>
+                      <TableCell className="text-right text-sm hidden md:table-cell">
+                        {formatHours(summary.idleHours)}
+                      </TableCell>
+                      <TableCell className="text-right text-sm hidden lg:table-cell">
+                        {formatHours(summary.onDutyHours)}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">{formatHours(summary.offHours)}</TableCell>
+                      <TableCell className="text-right text-sm">{formatHours(summary.disconnectHours)}</TableCell>
+                      <TableCell className="text-right text-sm">
+                        <span className={cn("font-bold", availabilityColor(summary.availabilityPercent))}>
+                          {summary.availabilityPercent.toFixed(1)}%
+                        </span>
+                      </TableCell>
+
+                      {/* Log mesin ini saja untuk tanggal terpilih */}
+                      <TableCell className="text-right">
+                        <ExportCsvButton
+                          params={{ scope: device.branchId, code: device.code, start: tanggal, end: tanggal }}
+                          title={`Unduh log ${device.code} tanggal ${tanggal}`}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+
+                  {rows.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={COLUMN_COUNT} className="h-24 text-center text-muted-foreground">
+                        Belum ada mesin terdaftar di {label}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

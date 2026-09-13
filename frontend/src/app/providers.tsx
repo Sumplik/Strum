@@ -1,10 +1,19 @@
 import * as React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { HttpError } from "@/lib/http";
+import { SESSION_EXPIRED_EVENT } from "@/app/session";
 
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    // Query data (bukan login) yang ditolak 401 berarti cookie sesi sudah tidak berlaku.
+    onError: (error) => {
+      if (error instanceof HttpError && error.status === 401) {
+        window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+      }
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: (failureCount, error) => {

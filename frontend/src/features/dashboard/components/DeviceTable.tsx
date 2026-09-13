@@ -4,13 +4,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
 import { StatusBadge, WarningBadge } from "./StatusBadge";
-import { isDeviceWarning } from "@/features/dashboard/utils/deviceStatus";
+import { BranchBadge, LocationBadge } from "./DeviceBadges";
 import { fmtDateTime } from "@/lib/utils";
 
 interface DeviceTableProps {
   devices: Device[];
   onSelect: (d: Device) => void;
 }
+
+const COLUMN_COUNT = 8;
 
 export function DeviceTable({ devices, onSelect }: DeviceTableProps) {
   return (
@@ -21,6 +23,7 @@ export function DeviceTable({ devices, onSelect }: DeviceTableProps) {
             <TableHeader>
               <TableRow>
                 <TableHead className="min-w-[100px] sm:min-w-[140px]">ID</TableHead>
+                <TableHead>Cabang</TableHead>
                 <TableHead className="hidden sm:table-cell">Lokasi</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden md:table-cell">Arus</TableHead>
@@ -33,45 +36,42 @@ export function DeviceTable({ devices, onSelect }: DeviceTableProps) {
             <TableBody>
               {devices.map((d) => (
                 <TableRow key={d.id}>
-                  <TableCell className="font-extrabold text-sm">{d.id}</TableCell>
+                  <TableCell className="font-extrabold text-sm">{d.code}</TableCell>
+                  <TableCell>
+                    <BranchBadge branchId={d.branchId} />
+                  </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                      {d.location ?? "-"}
-                    </span>
+                    <LocationBadge location={d.location} />
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center">
-                      {isDeviceWarning(d) ? (
-                        <WarningBadge device={d} />
-                      ) : (
-                        <StatusBadge status={d.status} />
-                      )}
+                      {d.online ? <StatusBadge status={d.status} /> : <WarningBadge device={d} />}
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">{d.arus ?? "-"}</TableCell>
                   <TableCell className="hidden lg:table-cell">{d.voltase ?? "-"}</TableCell>
                   <TableCell className="hidden xl:table-cell text-xs">{fmtDateTime(d.lastSeen)}</TableCell>
                   <TableCell className="text-right">
-                    <Button 
-                      variant="secondary" 
+                    <Button
+                      variant="secondary"
                       size="sm"
-                      className="rounded-xl h-8 px-2 sm:px-3" 
+                      className="rounded-xl h-8 px-2 sm:px-3"
                       onClick={() => onSelect(d)}
                     >
-                      <Eye className="h-3 w-3 sm:mr-2" /> 
+                      <Eye className="h-3 w-3 sm:mr-2" />
                       <span className="hidden sm:inline">Detail</span>
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
 
-              {devices.length === 0 ? (
+              {devices.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={COLUMN_COUNT} className="py-10 text-center text-sm text-muted-foreground">
                     Belum ada perangkat terdaftar / data kosong.
                   </TableCell>
                 </TableRow>
-              ) : null}
+              )}
             </TableBody>
           </Table>
         </div>
@@ -79,4 +79,3 @@ export function DeviceTable({ devices, onSelect }: DeviceTableProps) {
     </Card>
   );
 }
-

@@ -2,7 +2,9 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
+import { BranchProvider } from "@/app/branch";
 import { routeLabel, useDashboardRoute } from "@/app/navigation";
+import { useSession } from "@/app/session";
 import { api } from "@/lib/api";
 import { fmtDateTime } from "@/lib/utils";
 
@@ -26,22 +28,9 @@ function useLastUpdateTicker(ms = 3000) {
   return txt;
 }
 
-function useSessionCheck() {
-  const [status, setStatus] = React.useState<"checking" | "in" | "out">("checking");
-
-  React.useEffect(() => {
-    api
-      .verifyAuth()
-      .then((response) => setStatus(response.success ? "in" : "out"))
-      .catch(() => setStatus("out"));
-  }, []);
-
-  return { status, setStatus };
-}
-
 export default function App() {
   const { route, setRoute } = useDashboardRoute();
-  const { status, setStatus } = useSessionCheck();
+  const { status, setStatus } = useSession();
   const [showPageAnimation, setShowPageAnimation] = React.useState(false);
   const lastUpdateText = useLastUpdateTicker(3000);
 
@@ -82,20 +71,22 @@ export default function App() {
 
   return (
     <div className={showPageAnimation ? "animate-page-in" : ""}>
-      <AppShell
-        route={route}
-        onRouteChange={setRoute}
-        title={routeLabel(route)}
-        subtitle="Availability Monitoring • ESP32 → MQTT → Server → PostgreSQL"
-        lastUpdateText={lastUpdateText}
-        onLogout={handleLogout}
-      >
-        {route === "overview" && <OverviewPage />}
-        {route === "machines" && <MachinesPage />}
-        {route === "reports" && <ReportsDailyPage />}
-        {route === "trends" && <TrendsPage />}
-        {route === "settings" && <SettingsPage />}
-      </AppShell>
+      <BranchProvider>
+        <AppShell
+          route={route}
+          onRouteChange={setRoute}
+          title={routeLabel(route)}
+          subtitle="Availability Monitoring • ESP32 → MQTT → Server → PostgreSQL"
+          lastUpdateText={lastUpdateText}
+          onLogout={handleLogout}
+        >
+          {route === "overview" && <OverviewPage />}
+          {route === "machines" && <MachinesPage />}
+          {route === "reports" && <ReportsDailyPage />}
+          {route === "trends" && <TrendsPage />}
+          {route === "settings" && <SettingsPage />}
+        </AppShell>
+      </BranchProvider>
     </div>
   );
 }
